@@ -1,0 +1,54 @@
+{
+    "api": {
+        "base_url": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_id}",
+        "default_temperature": 0.6,
+        "default_max_tokens": 8192
+    },
+    "models": {
+        "qwen3-30b": {
+            "model_id": "@cf/qwen/qwen3-30b-a3b-fp8",
+            "input_cost_per_million": 0.051,
+            "output_cost_per_million": 0.34,
+            "context_window": 32768,
+            "batch_size": 300,
+            "reasoning": true,
+            "no_think_suffix": true,
+            "strip_html": false,
+            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lt","uk","be","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk"],
+            "notes": "Cheapest model. Append /no_think to disable reasoning. 69 tested languages."
+        },
+        "gemma-3-12b": {
+            "model_id": "@cf/google/gemma-3-12b-it",
+            "input_cost_per_million": 0.35,
+            "output_cost_per_million": 0.56,
+            "context_window": 80000,
+            "batch_size": 150,
+            "reasoning": false,
+            "strip_html": false,
+            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk"],
+            "notes": "Google Gemma 3. No reasoning overhead. 71/72 tested (Sinhala failed). 80K context."
+        },
+        "mistral-small-3.1": {
+            "model_id": "@cf/mistralai/mistral-small-3.1-24b-instruct",
+            "input_cost_per_million": 0.35,
+            "output_cost_per_million": 0.56,
+            "context_window": 128000,
+            "batch_size": 150,
+            "reasoning": false,
+            "strip_html": false,
+            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk"],
+            "notes": "MistralAI. No reasoning overhead. 72/72 perfect score. Largest context (128K)."
+        },
+        "sea-lion-27b": {
+            "model_id": "@cf/aisingapore/gemma-sea-lion-v4-27b-it",
+            "input_cost_per_million": 0.35,
+            "output_cost_per_million": 0.56,
+            "context_window": 128000,
+            "batch_size": 150,
+            "reasoning": false,
+            "strip_html": false,
+            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk"],
+            "notes": "AI Singapore SEA-LION. Optimized for Southeast Asian languages. 72/72 perfect score. 128K context."
+        }
+    }
+}

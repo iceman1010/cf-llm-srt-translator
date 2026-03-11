@@ -22,7 +22,7 @@ class Translator
     private string $modelId;
     private CloudflareClient $client;
 
-    private bool $enableThinking;
+    private bool $disableThinking;
     private int $contextWindow;
 
     private int $consecutiveErrors = 0;
@@ -57,7 +57,7 @@ class Translator
         $this->temperature = $options['temperature'] ?? $config['api']['default_temperature'];
         $this->maxTokens = $options['max_tokens'] ?? $config['api']['default_max_tokens'];
         $this->contextWindow = $this->modelConfig['context_window'];
-        $this->enableThinking = $options['think'] ?? false;
+        $this->disableThinking = $options['no_think'] ?? false;
 
         // Output file
         if (isset($options['output_file'])) {
@@ -92,7 +92,7 @@ class Translator
         echo "Target language: {$this->targetLanguage}\n";
         echo "Batch size: {$this->batchSize}\n";
         if ($this->modelConfig['reasoning'] ?? false) {
-            echo "Reasoning: " . ($this->enableThinking ? "enabled (--think)" : "disabled (use --think to enable)") . "\n";
+            echo "Reasoning: " . ($this->disableThinking ? "disabled (--no-think)" : "enabled") . "\n";
         }
         echo "Output: {$this->outputFile}\n\n";
 
@@ -152,8 +152,8 @@ class Translator
 
             $userMessage = PromptBuilder::formatBatchAsJson($batch);
 
-            // Append /no_think for reasoning models unless --think flag is used
-            if (($this->modelConfig['no_think_suffix'] ?? false) && !$this->enableThinking) {
+            // Append /no_think for reasoning models when --no-think flag is used
+            if (($this->modelConfig['no_think_suffix'] ?? false) && $this->disableThinking) {
                 $userMessage .= ' /no_think';
             }
 
@@ -187,11 +187,19 @@ class Translator
                 // Extract JSON from response
                 $translatedLines = $this->extractJson($responseText);
 
-                // Validate
-                $this->validateBatch($translatedLines, $batch);
+                // Validate — returns only valid items, handles partial results
+                $validLines = $this->validateBatch($translatedLines, $batch);
+
+                // Reduce batch size if model truncated the response
+                if (count($validLines) < count($batch)) {
+                    $oldBatchSize = $this->batchSize;
+                    $this->batchSize = max(1, count($validLines));
+                    echo " Batch size: {$oldBatchSize} -> {$this->batchSize}.";
+                }
 
                 // Apply translations
-                foreach ($translatedLines as $line) {
+                $maxTranslatedIdx = $i;
+                foreach ($validLines as $line) {
                     $idx = (int)$line['index'];
                     $text = $line['text'];
 
@@ -207,19 +215,28 @@ class Translator
 
                     $translatedFormat[$idx]['lines'] = $this->textToLines($text);
                     $translations[$idx] = $text;
+                    $maxTranslatedIdx = max($maxTranslatedIdx, $idx + 1);
                 }
 
+                // Advance to the next untranslated subtitle
+                $i = $maxTranslatedIdx;
+
                 // Save progress
-                $this->saveProgress($progressFile, $batchEnd, $translations);
+                $this->saveProgress($progressFile, $i, $translations);
 
                 $this->consecutiveErrors = 0;
                 echo " Done.\n";
 
-                $i = $batchEnd;
-
             } catch (\RuntimeException $e) {
                 $msg = $e->getMessage();
                 $isJsonError = str_contains($msg, 'JSON') || str_contains($msg, 'Count mismatch');
+
+                // Dump raw response for debugging JSON/validation errors
+                if ($isJsonError && isset($responseText)) {
+                    $debugFile = $this->inputFile . '.debug-response.txt';
+                    file_put_contents($debugFile, $responseText);
+                    echo " (raw response saved to {$debugFile})\n";
+                }
                 $isTimeout = str_contains($msg, '408') || str_contains($msg, 'Timeout') || str_contains($msg, 'timed out');
 
                 // JSON errors are transient — use separate counter with higher tolerance
@@ -394,31 +411,40 @@ class Translator
 
     /**
      * Validate translated batch against original batch.
+     * Returns only valid items. Logs partial results instead of throwing on count mismatch.
      */
-    private function validateBatch(array $translated, array $original): void
+    private function validateBatch(array $translated, array $original): array
     {
-        if (count($translated) !== count($original)) {
-            throw new \RuntimeException(
-                sprintf("Count mismatch: expected %d items, got %d", count($original), count($translated))
-            );
-        }
-
         $originalIndexes = array_column($original, 'index');
-
-        foreach ($translated as $lineIdx => $line) {
-            if (!isset($line['index']) || !isset($line['text'])) {
-                throw new \RuntimeException("Malformed object at position {$lineIdx}: missing index or text field");
-            }
-
-            if (!in_array($line['index'], $originalIndexes, true)) {
-                throw new \RuntimeException("Unexpected index: {$line['index']}");
-            }
-
-            // If translation is empty, keep original text instead of failing
-            if ($line['text'] === '' && $original[$lineIdx]['text'] !== '') {
-                $translated[$lineIdx]['text'] = $original[$lineIdx]['text'];
-            }
+        $originalByIndex = [];
+        foreach ($original as $item) {
+            $originalByIndex[$item['index']] = $item;
         }
+
+        $valid = [];
+        foreach ($translated as $line) {
+            if (!isset($line['index']) || !isset($line['text'])) {
+                continue;
+            }
+            if (!in_array($line['index'], $originalIndexes, true)) {
+                continue;
+            }
+            // If translation is empty, keep original text
+            if ($line['text'] === '' && ($originalByIndex[$line['index']]['text'] ?? '') !== '') {
+                $line['text'] = $originalByIndex[$line['index']]['text'];
+            }
+            $valid[] = $line;
+        }
+
+        if (empty($valid)) {
+            throw new \RuntimeException("No valid translations in response");
+        }
+
+        if (count($valid) < count($original)) {
+            echo sprintf(" Partial: %d/%d.", count($valid), count($original));
+        }
+
+        return $valid;
     }
 
     /**

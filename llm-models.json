@@ -17,6 +17,29 @@
             "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lt","uk","be","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk"],
             "notes": "Cheapest model. Append /no_think to disable reasoning. 69 tested languages."
         },
+        "gpt-oss-120b": {
+            "model_id": "@cf/openai/gpt-oss-120b",
+            "input_cost_per_million": 0.35,
+            "output_cost_per_million": 0.75,
+            "context_window": 128000,
+            "batch_size": 150,
+            "reasoning": true,
+            "no_think_suffix": false,
+            "strip_html": false,
+            "languages": [],
+            "notes": "OpenAI GPT-OSS 120B. Reasoning model. 128K context. Languages untested."
+        },
+        "llama-4-scout": {
+            "model_id": "@cf/meta/llama-4-scout-17b-16e-instruct",
+            "input_cost_per_million": 0.27,
+            "output_cost_per_million": 0.85,
+            "context_window": 131000,
+            "batch_size": 150,
+            "reasoning": false,
+            "strip_html": false,
+            "languages": [],
+            "notes": "Meta Llama 4 Scout 17B MoE. 131K context. Languages untested."
+        },
         "gemma-3-12b": {
             "model_id": "@cf/google/gemma-3-12b-it",
             "input_cost_per_million": 0.35,

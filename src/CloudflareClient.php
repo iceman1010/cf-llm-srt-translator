@@ -94,7 +94,11 @@ class CloudflareClient
         // Old format: result.response (string)
         // New format (OpenAI-compatible): result.choices[0].message.content
         $responseText = null;
-        if (isset($data['result']['response'])) {
+
+        // Some models (e.g., Llama 4) return result.response as a parsed array
+        if (isset($data['result']['response']) && is_array($data['result']['response'])) {
+            $responseText = json_encode($data['result']['response'], JSON_UNESCAPED_UNICODE);
+        } elseif (isset($data['result']['response']) && is_string($data['result']['response'])) {
             $responseText = $data['result']['response'];
         } elseif (isset($data['result']['choices'][0]['message']['content'])) {
             $responseText = $data['result']['choices'][0]['message']['content'];
@@ -106,7 +110,9 @@ class CloudflareClient
             if ($reasoning) {
                 throw new \RuntimeException("Model returned reasoning only, no content. May need more max_tokens or disable thinking.");
             }
-            throw new \RuntimeException("No response content in API result");
+            // Dump response structure for debugging
+            $debug = json_encode($data['result'] ?? $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+            throw new \RuntimeException("No response content in API result. Response structure:\n{$debug}");
         }
 
         // Normalize to result.response for consistent downstream access

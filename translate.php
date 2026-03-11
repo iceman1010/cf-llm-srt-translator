@@ -19,7 +19,7 @@ $options = getopt('', [
     'temperature::',
     'max-tokens::',
     'description::',
-    'think',
+    'no-think',
 ]);
 
 // Validate required arguments
@@ -31,12 +31,12 @@ if (empty($options['input']) || empty($options['language'])) {
     echo "Optional:\n";
     echo "  --output=<file>          Output file path (default: auto-generated)\n";
     echo "  --model=<key>            Model key (default: qwen3-30b)\n";
-    echo "                           Available: qwen3-30b, gemma-3-12b, mistral-small-3.1, sea-lion-27b\n";
+    echo "                           Available: qwen3-30b, gpt-oss-120b, llama-4-scout, gemma-3-12b, mistral-small-3.1, sea-lion-27b\n";
     echo "  --batch-size=<n>         Override batch size from model config\n";
     echo "  --temperature=<float>    Override temperature (default: 0.6)\n";
     echo "  --max-tokens=<n>         Override max tokens (default: 8192)\n";
     echo "  --description=<text>     Additional context for translation\n";
-    echo "  --think                  Enable reasoning for models that support it (e.g., qwen3-30b)\n";
+    echo "  --no-think               Disable reasoning for reasoning models (faster, cheaper, lower quality)\n";
     exit(1);
 }
 
@@ -52,7 +52,7 @@ try {
         'temperature' => isset($options['temperature']) ? (float)$options['temperature'] : null,
         'max_tokens' => isset($options['max-tokens']) ? (int)$options['max-tokens'] : null,
         'description' => $options['description'] ?? null,
-        'think' => isset($options['think']),
+        'no_think' => isset($options['no-think']),
     ]);
 
     $translator->translate();

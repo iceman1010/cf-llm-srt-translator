@@ -1,21 +1,21 @@
 # CF LLM SRT Translator
 
-A PHP application that translates SRT (SubRip) subtitle files using Cloudflare's AI API with support for multiple LLM models and 70+ languages.
+A PHP CLI tool that translates subtitle files (SRT, VTT, ASS, etc.) using Cloudflare Workers AI LLMs. Supports 70+ languages with multiple model choices.
 
 ## Features
 
-- 🌍 **70+ Language Support** - Translate subtitles to nearly every major language
-- ⚡ **Multiple LLM Models** - Choose between Qwen, Gemma, Mistral, or SEA-LION
-- 💰 **Cost Comparison** - Test different models to optimize quality vs. cost
-- 🧠 **Reasoning Mode** - Optional reasoning for Qwen (append "/no_think" to disable)
-- 📝 **Large Context Windows** - Handle substantial SRT files (up to 128K tokens)
-- 🔄 **Batch Processing** - Efficient batch handling for each model
+- **70+ Language Support** - Translate subtitles to nearly every major language
+- **6 LLM Models** - Qwen, GPT-OSS, Llama 4, Gemma, Mistral, SEA-LION
+- **Reasoning Mode** - Enabled by default for reasoning models (use `--no-think` to disable)
+- **Partial Result Recovery** - Accepts truncated responses and auto-reduces batch size
+- **Resume Support** - Progress file (`.progress`) allows resuming interrupted translations
+- **Cost Tracking** - Per-run token usage and cost estimates
 
 ## Requirements
 
-- PHP 8.0+
+- PHP 8.1+
 - Composer
-- Cloudflare Account with AI API access
+- Cloudflare Account with Workers AI API access
 
 ## Installation
 
@@ -27,114 +27,99 @@ composer install
 
 ## Configuration
 
-1. Set your Cloudflare credentials as environment variables:
+Create a `.env` file with your Cloudflare credentials:
 ```bash
-export CF_ACCOUNT_ID="your_cloudflare_account_id"
-export CF_API_TOKEN="your_cloudflare_api_token"
+CLOUDFLARE_API_TOKEN=your_api_token
+CLOUDFLARE_ACCOUNT_ID=your_account_id
 ```
-
-2. Update `llm-models.json` with your preferred model settings if needed.
 
 ## Usage
 
 ### Basic Translation
 ```bash
-php translate.php input.srt --language de
+php translate.php --input=file.srt --language=German
 ```
 
-### Using a Specific Model
+### Choose a Model
 ```bash
-php translate.php input.srt --language de --model mistral-small-3.1
+php translate.php --input=file.srt --language=Spanish --model=mistral-small-3.1
 ```
 
-### Test Language Support
+### Disable Reasoning (faster, cheaper, lower quality)
 ```bash
-php test-languages.php
+php translate.php --input=file.srt --language=French --model=qwen3-30b --no-think
 ```
 
-### Debug Mode
-```bash
-php test-debug.php
+### All Options
+```
+php translate.php --input=<file> --language=<lang> [options]
+
+Required:
+  --input=<file>           Input subtitle file (.srt, .vtt, .ass, etc.)
+  --language=<lang>        Target language (e.g., French, Spanish, Arabic)
+
+Optional:
+  --output=<file>          Output file path (default: auto-generated)
+  --model=<key>            Model key (default: qwen3-30b)
+  --batch-size=<n>         Override batch size from model config
+  --temperature=<float>    Override temperature (default: 0.6)
+  --max-tokens=<n>         Override max tokens (default: 8192)
+  --description=<text>     Additional context for translation
+  --no-think               Disable reasoning for reasoning models
 ```
 
 ## Supported Models
 
-| Model | Model ID | Cost | Context | Languages | Reasoning |
-|-------|----------|------|---------|-----------|-----------|
-| **Qwen 3 30B** | `@cf/qwen/qwen3-30b-a3b-fp8` | $0.051/$0.34 | 32K | 69 | ✅ |
-| **Gemma 3 12B** | `@cf/google/gemma-3-12b-it` | $0.35/$0.56 | 80K | 71/72 | ❌ |
-| **Mistral Small 3.1** | `@cf/mistralai/mistral-small-3.1-24b-instruct` | $0.35/$0.56 | 128K | 72/72 | ❌ |
-| **SEA-LION 27B** | `@cf/aisingapore/gemma-sea-lion-v4-27b-it` | $0.35/$0.56 | 128K | 72/72 | ❌ |
+| Model | Cost (in/out per M tokens) | Context | Reasoning | Languages |
+|-------|---------------------------|---------|-----------|-----------|
+| **Qwen 3 30B** (default) | $0.051 / $0.34 | 32K | Yes | 69 tested |
+| **GPT-OSS 120B** | $0.35 / $0.75 | 128K | Yes | Untested |
+| **Llama 4 Scout 17B** | $0.27 / $0.85 | 131K | No | Untested |
+| **Gemma 3 12B** | $0.35 / $0.56 | 80K | No | 71/72 tested |
+| **Mistral Small 3.1** | $0.35 / $0.56 | 128K | No | 72/72 tested |
+| **SEA-LION 27B** | $0.35 / $0.56 | 128K | No | 72/72 tested |
 
 ### Model Selection Guide
 
-- **Qwen 3 30B**: Best for budget-conscious projects. Has reasoning capability.
-- **Gemma 3 12B**: Google's model. Good balance of quality and cost.
-- **Mistral Small 3.1**: Recommended for most use cases. Perfect language test score (72/72).
-- **SEA-LION 27B**: Optimized for Southeast Asian languages.
+- **qwen3-30b** - Cheapest by far. Reasoning enabled by default improves quality significantly.
+- **gpt-oss-120b** - OpenAI's 120B reasoning model. Higher quality, higher cost.
+- **llama-4-scout** - Meta's Llama 4 MoE. Large context, competitive pricing.
+- **gemma-3-12b** - Google's model. No reasoning overhead.
+- **mistral-small-3.1** - Perfect language test score (72/72). Largest context (128K).
+- **sea-lion-27b** - Optimized for Southeast Asian languages. Perfect score (72/72).
 
-## API Configuration
+## Error Handling
 
-The application connects to Cloudflare's AI API:
-- **Base URL**: `https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_id}`
-- **Default Temperature**: 0.6 (balanced creativity/consistency)
-- **Default Max Tokens**: 8,192
+- **Partial results** - If a model truncates output, valid translations are kept and batch size auto-reduces
+- **Rate limiting (429)** - Exponential backoff up to 120s
+- **Server errors (500/503)** - 60s pause and retry
+- **Malformed JSON** - Multi-step extraction (strip fences, think tags, bracket extraction, repair)
+- **Debug logging** - Raw responses saved to `.debug-response.txt` on JSON errors
+- **Consecutive error limit** - 3 failures on the same batch before aborting (progress is saved)
 
 ## Project Structure
 
 ```
-.
-├── translate.php              # Main translation script
-├── test-languages.php         # Test language support across models
-├── test-languages-retry.php   # Retry failed language tests
-├── test-debug.php             # Debug mode for troubleshooting
-├── llm-models.json            # Model configurations
-├── src/                       # Source code (classes/utilities)
-├── composer.json              # Composer configuration
-├── test.srt                   # Sample SRT file for testing
-└── output-*.srt               # Example output translations
+├── translate.php            # CLI entry point
+├── llm-models.json          # Model registry and API config
+├── .env                     # Cloudflare credentials
+├── src/
+│   ├── Translator.php       # Main orchestrator (batch loop, progress, error handling)
+│   ├── CloudflareClient.php # HTTP client for CF Workers AI REST API
+│   └── PromptBuilder.php    # System instruction + JSON batch formatting
+└── composer.json            # Dependencies (PSR-4 autoload)
 ```
 
-## Example Output Files
+## Translation Flow
 
-The repository includes sample translations:
-- `output-qwen3.de.srt` - Qwen 3 German translation
-- `output-qwen3-think.de.srt` - Qwen 3 with reasoning (German)
-- `output-mistral.de.srt` - Mistral Small 3.1 (German)
-- `output-gemma.de.srt` - Gemma 3 (German)
-- `output-sealion.th.srt` - SEA-LION (Thai)
-
-## Troubleshooting
-
-### API Authentication Failed
-- Verify `CF_ACCOUNT_ID` and `CF_API_TOKEN` environment variables are set correctly
-- Check that your Cloudflare account has AI API enabled
-
-### Language Not Supported
-- Review the tested languages for your chosen model in `llm-models.json`
-- Some models have perfect support (Mistral, SEA-LION), others have partial support
-
-### Rate Limiting
-- Adjust batch sizes in `llm-models.json` if hitting rate limits
-- Implement retry logic using `test-languages-retry.php`
-
-## Performance Tips
-
-- Use **Qwen 3 30B** for best cost-efficiency
-- Use **Mistral Small 3.1** for highest language support and 128K context
-- Batch multiple subtitles to reduce API calls
-- Test with small SRT files first
-
-## Contributing
-
-Contributions are welcome! Feel free to submit issues and pull requests.
+1. Parse input subtitle file via `mantas-done/subtitles`
+2. Batch subtitles as JSON arrays
+3. Send each batch to CF Workers AI with translation prompt
+4. Extract and validate JSON response (handles multiple response formats)
+5. Accept partial results if model truncates, auto-reduce batch size
+6. Apply RTL BiDi wrapping where needed
+7. Save output and clean up progress file
 
 ## License
 
 [Add your chosen license]
-
-## Support
-
-For questions or issues:
-- Open an issue on GitHub
-- Check existing test results in output files

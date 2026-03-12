@@ -14,8 +14,8 @@
             "reasoning": true,
             "no_think_suffix": true,
             "strip_html": false,
-            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lt","uk","be","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk"],
-            "notes": "Cheapest model. Append /no_think to disable reasoning. 69 tested languages."
+            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lt","uk","be","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk","am","ha","yo","ig","zu","xh","so","mg","rw","sn","ny","ku","ps","sd","tg","tk","ky","tt","ug","jv","su","ceb","mi","sm","haw","yi","eo","la","ht","gd"],
+            "notes": "Cheapest model. Append /no_think to disable reasoning. 99/102 tested (lv, ka, bn failed)."
         },
         "gpt-oss-120b": {
             "model_id": "@cf/openai/gpt-oss-120b",
@@ -26,8 +26,8 @@
             "reasoning": true,
             "no_think_suffix": false,
             "strip_html": false,
-            "languages": [],
-            "notes": "OpenAI GPT-OSS 120B. Reasoning model. 128K context. Languages untested."
+            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk","am","ha","yo","ig","zu","xh","so","mg","rw","sn","ny","ku","ps","sd","tg","tk","ky","tt","ug","jv","su","ceb","mi","sm","haw","yi","eo","la","ht","gd"],
+            "notes": "OpenAI GPT-OSS 120B. Reasoning model. 128K context. 102/102 perfect score."
         },
         "llama-4-scout": {
             "model_id": "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -37,8 +37,8 @@
             "batch_size": 150,
             "reasoning": false,
             "strip_html": false,
-            "languages": [],
-            "notes": "Meta Llama 4 Scout 17B MoE. 131K context. Languages untested."
+            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk","am","ha","yo","ig","zu","xh","so","mg","rw","sn","ny","ku","ps","sd","tg","tk","ky","tt","ug","jv","su","ceb","mi","sm","haw","yi","eo","la","ht","gd"],
+            "notes": "Meta Llama 4 Scout 17B MoE. 131K context. 102/102 perfect score."
         },
         "gemma-3-12b": {
             "model_id": "@cf/google/gemma-3-12b-it",
@@ -48,8 +48,8 @@
             "batch_size": 150,
             "reasoning": false,
             "strip_html": false,
-            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk"],
-            "notes": "Google Gemma 3. No reasoning overhead. 71/72 tested (Sinhala failed). 80K context."
+            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","no","fi","et","lv","lt","uk","be","ka","hy","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","kn","ml","pa","si","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","my","az","uz","kk","am","ha","yo","ig","zu","xh","so","mg","rw","sn","ny","ku","ps","sd","tg","tk","ky","tt","ug","jv","su","ceb","mi","sm","haw","yi","eo","la","ht","gd"],
+            "notes": "Google Gemma 3. No reasoning overhead. 96/102 tested (da, is, mr, gu, ne, lo failed). 80K context."
         },
         "mistral-small-3.1": {
             "model_id": "@cf/mistralai/mistral-small-3.1-24b-instruct",
@@ -59,8 +59,8 @@
             "batch_size": 150,
             "reasoning": false,
             "strip_html": false,
-            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk"],
-            "notes": "MistralAI. No reasoning overhead. 72/72 perfect score. Largest context (128K)."
+            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk","am","ha","yo","ig","zu","xh","so","rw","sn","ny","ku","ps","sd","tg","tk","ky","tt","ug","jv","su","ceb","mi","sm","haw","yi","eo","la","ht","gd"],
+            "notes": "MistralAI. No reasoning overhead. 101/102 tested (mg failed). 128K context."
         },
         "sea-lion-27b": {
             "model_id": "@cf/aisingapore/gemma-sea-lion-v4-27b-it",
@@ -70,8 +70,8 @@
             "batch_size": 150,
             "reasoning": false,
             "strip_html": false,
-            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk"],
-            "notes": "AI Singapore SEA-LION. Optimized for Southeast Asian languages. 72/72 perfect score. 128K context."
+            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk","am","ha","yo","ig","zu","xh","so","mg","rw","sn","ny","ku","ps","sd","tg","tk","ky","tt","ug","jv","su","ceb","mi","sm","haw","yi","eo","la","ht","gd"],
+            "notes": "AI Singapore SEA-LION. Optimized for Southeast Asian languages. 102/102 perfect score. 128K context."
         }
     }
 }

@@ -12,6 +12,86 @@ $dotenv->load();
 $accountId = $_ENV['CLOUDFLARE_ACCOUNT_ID'];
 $apiToken = $_ENV['CLOUDFLARE_API_TOKEN'];
 
+// JSON extraction — mirrors Translator::extractJson() + repairJson()
+function extractJson(string $text): ?array
+{
+    // Step 1: Try direct decode
+    $result = json_decode($text, true);
+    if (is_array($result) && isListOfDicts($result)) return $result;
+
+    // Step 2: Strip <think>...</think> tags
+    $text = preg_replace('/<think>.*?<\/think>/s', '', $text);
+    $text = trim($text);
+
+    // Step 3: Strip markdown code fences
+    $text = preg_replace('/^```(?:json)?\s*/m', '', $text);
+    $text = preg_replace('/```\s*$/m', '', $text);
+    $text = trim($text);
+
+    // Step 4: Try decode again
+    $result = json_decode($text, true);
+    if (is_array($result) && isListOfDicts($result)) return $result;
+
+    // Step 5: Bracket extraction
+    $firstBracket = strpos($text, '[');
+    $lastBracket = strrpos($text, ']');
+    if ($firstBracket !== false && $lastBracket !== false && $lastBracket > $firstBracket) {
+        $extracted = substr($text, $firstBracket, $lastBracket - $firstBracket + 1);
+        $result = json_decode($extracted, true);
+        if (is_array($result) && isListOfDicts($result)) return $result;
+    }
+
+    // Step 6: repairJson
+    return repairJson($text);
+}
+
+function repairJson(string $text): ?array
+{
+    $firstBracket = strpos($text, '[');
+    $lastBracket = strrpos($text, ']');
+    if ($firstBracket !== false && $lastBracket !== false) {
+        $text = substr($text, $firstBracket, $lastBracket - $firstBracket + 1);
+    }
+
+    // Fix trailing commas before ]
+    $fixed = preg_replace('/,\s*]/', ']', $text);
+    $result = json_decode($fixed, true);
+    if (is_array($result) && isListOfDicts($result)) return $result;
+
+    // Fix missing } before ]
+    $fixed = preg_replace('/"\s*]$/', '"}]', $text);
+    $result = json_decode($fixed, true);
+    if (is_array($result) && isListOfDicts($result)) return $result;
+
+    // Fix swapped }] → ]}
+    if (str_ends_with(rtrim($text), ']}')) {
+        $fixed = substr(rtrim($text), 0, -2) . '}]';
+        $result = json_decode($fixed, true);
+        if (is_array($result) && isListOfDicts($result)) return $result;
+    }
+
+    // Fix missing closing bracket
+    if ($firstBracket !== false && $lastBracket === false) {
+        $result = json_decode($text . '"}]', true);
+        if (is_array($result) && isListOfDicts($result)) return $result;
+        $result = json_decode($text . ']', true);
+        if (is_array($result) && isListOfDicts($result)) return $result;
+    }
+
+    return null;
+}
+
+function isListOfDicts(array $data): bool
+{
+    if (empty($data)) return false;
+    foreach ($data as $item) {
+        if (!is_array($item) || array_keys($item) === range(0, count($item) - 1)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Test languages: code => name
 $languages = [
     'en' => 'English',
@@ -87,6 +167,42 @@ $languages = [
     'az' => 'Azerbaijani',
     'uz' => 'Uzbek',
     'kk' => 'Kazakh',
+    // African
+    'am' => 'Amharic',
+    'ha' => 'Hausa',
+    'yo' => 'Yoruba',
+    'ig' => 'Igbo',
+    'zu' => 'Zulu',
+    'xh' => 'Xhosa',
+    'so' => 'Somali',
+    'mg' => 'Malagasy',
+    'rw' => 'Kinyarwanda',
+    'sn' => 'Shona',
+    'ny' => 'Chichewa',
+    // Middle East / South Asian
+    'ku' => 'Kurdish',
+    'ps' => 'Pashto',
+    'sd' => 'Sindhi',
+    // Central Asian / Turkic
+    'tg' => 'Tajik',
+    'tk' => 'Turkmen',
+    'ky' => 'Kyrgyz',
+    'tt' => 'Tatar',
+    'ug' => 'Uyghur',
+    // Southeast Asian
+    'jv' => 'Javanese',
+    'su' => 'Sundanese',
+    'ceb' => 'Cebuano',
+    // Pacific
+    'mi' => 'Maori',
+    'sm' => 'Samoan',
+    'haw' => 'Hawaiian',
+    // Other
+    'yi' => 'Yiddish',
+    'eo' => 'Esperanto',
+    'la' => 'Latin',
+    'ht' => 'Haitian Creole',
+    'gd' => 'Scottish Gaelic',
 ];
 
 $models = [
@@ -110,14 +226,44 @@ $models = [
         'no_think' => false,
         'reasoning' => true,
     ],
+    'gpt-oss-120b' => [
+        'model_id' => '@cf/openai/gpt-oss-120b',
+        'no_think' => false,
+        'reasoning' => true,
+    ],
+    'llama-4-scout' => [
+        'model_id' => '@cf/meta/llama-4-scout-17b-16e-instruct',
+        'no_think' => false,
+        'reasoning' => false,
+    ],
+    'gemma-3-12b' => [
+        'model_id' => '@cf/google/gemma-3-12b-it',
+        'no_think' => false,
+        'reasoning' => false,
+    ],
+    'mistral-small-3.1' => [
+        'model_id' => '@cf/mistralai/mistral-small-3.1-24b-instruct',
+        'no_think' => false,
+        'reasoning' => false,
+    ],
+    'sea-lion-27b' => [
+        'model_id' => '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+        'no_think' => false,
+        'reasoning' => false,
+    ],
 ];
 
-// Select model from CLI arg
+// Select model from CLI arg, optional comma-separated language filter
 $modelKey = $argv[1] ?? null;
+$onlyLangs = isset($argv[2]) ? explode(',', $argv[2]) : null;
 if (!$modelKey || !isset($models[$modelKey])) {
-    echo "Usage: php test-languages.php <model-key>\n";
+    echo "Usage: php test-languages.php <model-key> [lang1,lang2,...]\n";
     echo "Available: " . implode(', ', array_keys($models)) . "\n";
     exit(1);
+}
+if ($onlyLangs) {
+    $languages = array_intersect_key($languages, array_flip($onlyLangs));
+    $languages['en'] = 'English'; // keep English for skip logic
 }
 
 $model = $models[$modelKey];
@@ -192,7 +338,13 @@ foreach ($languages as $code => $langName) {
     if (isset($data['result']['response'])) {
         $responseText = $data['result']['response'];
     } elseif (isset($data['result']['choices'][0]['message']['content'])) {
-        $responseText = $data['result']['choices'][0]['message']['content'];
+        $content = $data['result']['choices'][0]['message']['content'];
+        $responseText = is_array($content) ? json_encode($content, JSON_UNESCAPED_UNICODE) : $content;
+    }
+
+    // Handle case where responseText is still an array
+    if (is_array($responseText)) {
+        $responseText = json_encode($responseText, JSON_UNESCAPED_UNICODE);
     }
 
     if (!$responseText) {
@@ -201,28 +353,12 @@ foreach ($languages as $code => $langName) {
         continue;
     }
 
-    // Try to extract JSON
-    $translated = null;
+    // Extract JSON using same logic as Translator::extractJson() + repairJson()
+    $translated = extractJson($responseText);
 
-    // Strip think tags
-    $cleaned = preg_replace('/<think>.*?<\/think>/s', '', $responseText);
-    $cleaned = preg_replace('/^```(?:json)?\s*/m', '', $cleaned);
-    $cleaned = preg_replace('/```\s*$/m', '', $cleaned);
-    $cleaned = trim($cleaned);
-
-    $translated = json_decode($cleaned, true);
-
-    // Try bracket extraction
-    if (!is_array($translated)) {
-        $first = strpos($cleaned, '[');
-        $last = strrpos($cleaned, ']');
-        if ($first !== false && $last !== false && $last > $first) {
-            $translated = json_decode(substr($cleaned, $first, $last - $first + 1), true);
-        }
-    }
-
-    if (!is_array($translated) || count($translated) !== 3) {
-        echo sprintf("  %-4s %-15s FAIL (bad JSON, got: %.60s)\n", $code, $langName, $cleaned);
+    if ($translated === null || count($translated) !== 3) {
+        $preview = mb_substr(trim($responseText), 0, 60);
+        echo sprintf("  %-4s %-15s FAIL (bad JSON, got: %.60s)\n", $code, $langName, $preview);
         $failed[] = $code;
         continue;
     }

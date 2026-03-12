@@ -1,0 +1,9 @@
+{
+    "main": "translate.php",
+    "output": "cf-llm-srt-translate.phar",
+    "directories": ["src"],
+    "files": ["llm-models.json"],
+    "exclude-composer-files": false,
+    "force-autodiscovery": true,
+    "compression": "GZ"
+}

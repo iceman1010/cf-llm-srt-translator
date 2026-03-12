@@ -4,10 +4,19 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use CloudflareSrt\Translator;
 use Dotenv\Dotenv;
+use WhiteCube\Lingua\Service as Lingua;
 
-// Load .env
-$dotenv = Dotenv::createImmutable(__DIR__);
-$dotenv->load();
+// Load credentials: env vars take priority, fall back to .env
+if (empty(getenv('CLOUDFLARE_API_TOKEN')) || empty(getenv('CLOUDFLARE_ACCOUNT_ID'))) {
+    $envDir = str_starts_with(__DIR__, 'phar://') ? getcwd() : __DIR__;
+    if (file_exists($envDir . '/.env')) {
+        $dotenv = Dotenv::createImmutable($envDir);
+        $dotenv->load();
+    } else {
+        echo "Error: Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID as env vars or in .env\n";
+        exit(1);
+    }
+}
 
 // CLI argument parsing
 $options = getopt('', [
@@ -27,7 +36,7 @@ if (empty($options['input']) || empty($options['language'])) {
     echo "Usage: php translate.php --input=<file> --language=<target_language> [options]\n\n";
     echo "Required:\n";
     echo "  --input=<file>           Input subtitle file (.srt, .vtt, .ass, etc.)\n";
-    echo "  --language=<lang>        Target language (e.g., French, Spanish, Arabic)\n\n";
+    echo "  --language=<lang>        Target language name or ISO code (e.g., French, fr, fra)\n\n";
     echo "Optional:\n";
     echo "  --output=<file>          Output file path (default: auto-generated)\n";
     echo "  --model=<key>            Model key (default: qwen3-30b)\n";
@@ -40,11 +49,22 @@ if (empty($options['input']) || empty($options['language'])) {
     exit(1);
 }
 
+// Validate and resolve language
+try {
+    $lingua = Lingua::create($options['language']);
+    $targetLanguage = ucfirst($lingua->toName());
+} catch (\Exception $e) {
+    echo "Error: Unknown language \"{$options['language']}\". Use a language name (e.g., French) or ISO code (e.g., fr, fra).\n";
+    exit(1);
+}
+
+echo "Target language: {$targetLanguage}\n";
+
 try {
     $translator = new Translator([
         'api_token' => $_ENV['CLOUDFLARE_API_TOKEN'],
         'account_id' => $_ENV['CLOUDFLARE_ACCOUNT_ID'],
-        'target_language' => $options['language'],
+        'target_language' => $targetLanguage,
         'input_file' => $options['input'],
         'model' => $options['model'] ?? 'qwen3-30b',
         'output_file' => $options['output'] ?? null,

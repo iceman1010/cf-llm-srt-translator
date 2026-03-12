@@ -5,3 +5,4 @@ vendor/
 *.progress
 composer.lock
 CLAUDE.md
+cf-llm-srt-translate.phar

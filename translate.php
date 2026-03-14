@@ -29,7 +29,36 @@ $options = getopt('', [
     'max-tokens::',
     'description::',
     'no-think',
+    'list-models',
 ]);
+
+// List available models
+if (isset($options['list-models'])) {
+    $modelsPath = str_starts_with(__DIR__, 'phar://') ? 'phar://' . Phar::running(false) . '/llm-models.json' : __DIR__ . '/llm-models.json';
+    $config = json_decode(file_get_contents($modelsPath), true);
+    $models = $config['models'];
+
+    echo "Available models:\n\n";
+    foreach ($models as $key => $model) {
+        $reasoning = $model['reasoning'] ? 'yes' : 'no';
+        $langs = count($model['languages']);
+        echo sprintf(
+            "  %-20s context: %6dK  batch: %4d  reasoning: %-3s  languages: %d\n",
+            $key,
+            (int)($model['context_window'] / 1000),
+            $model['batch_size'],
+            $reasoning,
+            $langs
+        );
+    }
+    echo "\n";
+    foreach ($models as $key => $model) {
+        if (!empty($model['notes'])) {
+            echo sprintf("  %-20s %s\n", $key, $model['notes']);
+        }
+    }
+    exit(0);
+}
 
 // Validate required arguments
 if (empty($options['input']) || empty($options['language'])) {
@@ -46,6 +75,7 @@ if (empty($options['input']) || empty($options['language'])) {
     echo "  --max-tokens=<n>         Override max tokens (default: 8192)\n";
     echo "  --description=<text>     Additional context for translation\n";
     echo "  --no-think               Disable reasoning for reasoning models (faster, cheaper, lower quality)\n";
+    echo "  --list-models            List available models and exit\n";
     exit(1);
 }
 

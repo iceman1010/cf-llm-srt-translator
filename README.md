@@ -19,6 +19,9 @@ Traditional subtitle translation tools rely on rule-based machine translation th
 - **Partial Result Recovery** - Truncated LLM responses are salvaged; batch size auto-reduces
 - **RTL Language Support** - Automatic BiDi wrapping for Arabic, Hebrew, Persian, Urdu, and other right-to-left languages
 - **Cost Tracking** - Per-run token usage and cost estimates
+- **Self-Update** - Update the PHAR to the latest version with `--update`
+- **List Languages** - Query supported languages per model with `--list-languages`
+- **List Models** - Browse available models with `--list-models`
 - **Single-File Executable** - Download one PHAR file and run it anywhere with PHP 8.1+
 
 ## Supported Languages
@@ -95,6 +98,21 @@ php translate.php --input=movie.srt --language=Spanish --model=mistral-small-3.1
 php translate.php --input=movie.srt --language=French --model=qwen3-30b --no-think
 ```
 
+### List available models
+```bash
+php cf-llm-srt-translate.phar --list-models
+```
+
+### List supported languages for a model
+```bash
+php cf-llm-srt-translate.phar --list-languages --model=qwen3-30b
+```
+
+### Self-update to latest version
+```bash
+php cf-llm-srt-translate.phar --update
+```
+
 ### All Options
 ```
 php translate.php --input=<file> --language=<lang> [options]
@@ -111,6 +129,9 @@ Optional:
   --max-tokens=<n>         Override max tokens (default: 8192)
   --description=<text>     Additional context for translation
   --no-think               Disable reasoning for reasoning models
+  --list-models            List available models and exit
+  --list-languages         List languages for a model (requires --model) and exit
+  --update                 Update PHAR to latest release and exit
 ```
 
 ## AI Models for Subtitle Translation

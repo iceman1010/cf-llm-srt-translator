@@ -2,6 +2,8 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
+define('VERSION', '@@@version@@@');
+
 use CloudflareSrt\Translator;
 use Dotenv\Dotenv;
 use WhiteCube\Lingua\Service as Lingua;
@@ -31,6 +33,7 @@ $options = getopt('', [
     'no-think',
     'list-models',
     'list-languages',
+    'update',
 ]);
 
 // List available models
@@ -75,6 +78,84 @@ if (isset($options['list-languages'])) {
         echo "Error: " . $e->getMessage() . "\n";
         exit(1);
     }
+    exit(0);
+}
+
+// Self-update: check GitHub for newer release and replace this PHAR
+if (isset($options['update'])) {
+    $pharPath = Phar::running(false);
+    if (empty($pharPath)) {
+        echo "Error: --update can only be used with the PHAR build.\n";
+        echo "Download it from: https://github.com/iceman1010/cf-llm-srt-translator/releases\n";
+        exit(1);
+    }
+
+    $repo = 'iceman1010/cf-llm-srt-translator';
+    $apiUrl = "https://api.github.com/repos/{$repo}/releases/latest";
+
+    echo "Current version: " . VERSION . "\n";
+
+    // Fetch latest release
+    $ctx = stream_context_create(['http' => ['header' => 'User-Agent: cf-llm-srt-translate', 'timeout' => 30]]);
+    $json = @file_get_contents($apiUrl, false, $ctx);
+    if ($json === false) {
+        echo "Error: Failed to fetch release info from GitHub.\n";
+        exit(1);
+    }
+    $release = json_decode($json, true);
+    $latestTag = $release['tag_name'] ?? '';
+
+    if (empty($latestTag)) {
+        echo "Error: Could not determine latest version.\n";
+        exit(1);
+    }
+
+    echo "Latest version:  {$latestTag}\n";
+
+    if (VERSION === $latestTag) {
+        echo "Already up to date.\n";
+        exit(0);
+    }
+
+    // Find PHAR asset download URL
+    $downloadUrl = null;
+    foreach ($release['assets'] ?? [] as $asset) {
+        if ($asset['name'] === 'cf-llm-srt-translate.phar') {
+            $downloadUrl = $asset['browser_download_url'];
+            break;
+        }
+    }
+    if (!$downloadUrl) {
+        echo "Error: PHAR asset not found in release {$latestTag}.\n";
+        exit(1);
+    }
+
+    // Download to temp file
+    echo "Downloading {$latestTag}...\n";
+    $tmpFile = tempnam(sys_get_temp_dir(), 'cf-update-');
+    if (!file_put_contents($tmpFile, file_get_contents($downloadUrl))) {
+        echo "Error: Download failed.\n";
+        @unlink($tmpFile);
+        exit(1);
+    }
+
+    // Validate it looks like a PHP file
+    $header = file_get_contents($tmpFile, false, null, 0, 64);
+    if (!str_contains($header, 'php')) {
+        echo "Error: Downloaded file does not appear to be a valid PHAR.\n";
+        @unlink($tmpFile);
+        exit(1);
+    }
+
+    // Replace current PHAR
+    if (!@rename($tmpFile, $pharPath)) {
+        echo "Error: Failed to replace PHAR. Check file permissions.\n";
+        @unlink($tmpFile);
+        exit(1);
+    }
+    chmod($pharPath, 0755);
+
+    echo "Updated to {$latestTag}.\n";
     exit(0);
 }
 

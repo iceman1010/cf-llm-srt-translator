@@ -148,8 +148,14 @@ if (isset($options['update'])) {
     }
 
     // Replace current PHAR
+    if (!is_writable($pharPath)) {
+        echo "Error: Cannot write to {$pharPath}\n";
+        echo "Run with sudo: sudo php " . basename($pharPath) . " --update\n";
+        @unlink($tmpFile);
+        exit(1);
+    }
     if (!@rename($tmpFile, $pharPath)) {
-        echo "Error: Failed to replace PHAR. Check file permissions.\n";
+        echo "Error: Failed to replace PHAR.\n";
         @unlink($tmpFile);
         exit(1);
     }

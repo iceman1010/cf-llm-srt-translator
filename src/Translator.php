@@ -615,6 +615,28 @@ class Translator
     }
 
     /**
+     * List supported languages for a given model.
+     *
+     * @param string $modelKey Model key (e.g., 'qwen3-30b')
+     * @param string|null $configPath Optional path to llm-models.json
+     * @return array List of ISO language codes
+     * @throws \RuntimeException if model not found or config unreadable
+     */
+    public static function listLanguages(string $modelKey, ?string $configPath = null): array
+    {
+        $configPath = $configPath ?? __DIR__ . '/../llm-models.json';
+        $configJson = file_get_contents($configPath);
+        if ($configJson === false) {
+            throw new \RuntimeException("Cannot read config file: {$configPath}");
+        }
+        $config = json_decode($configJson, true);
+        if (!isset($config['models'][$modelKey])) {
+            throw new \RuntimeException("Unknown model: {$modelKey}. Available: " . implode(', ', array_keys($config['models'])));
+        }
+        return $config['models'][$modelKey]['languages'] ?? [];
+    }
+
+    /**
      * Log token usage and estimated cost.
      */
     private function logTokenUsage(): void

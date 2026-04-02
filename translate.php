@@ -30,6 +30,7 @@ $options = getopt('', [
     'description::',
     'no-think',
     'list-models',
+    'list-languages',
 ]);
 
 // List available models
@@ -56,6 +57,23 @@ if (isset($options['list-models'])) {
         if (!empty($model['notes'])) {
             echo sprintf("  %-20s %s\n", $key, $model['notes']);
         }
+    }
+    exit(0);
+}
+
+// List languages for a specific model
+if (isset($options['list-languages'])) {
+    if (empty($options['model'])) {
+        echo "Error: --model is required when using --list-languages.\n";
+        echo "Usage: php translate.php --list-languages --model=<model_key>\n";
+        exit(1);
+    }
+    try {
+        $languages = Translator::listLanguages($options['model']);
+        echo json_encode($languages) . "\n";
+    } catch (\RuntimeException $e) {
+        echo "Error: " . $e->getMessage() . "\n";
+        exit(1);
     }
     exit(0);
 }

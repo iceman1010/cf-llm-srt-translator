@@ -20,6 +20,7 @@ Traditional subtitle translation tools rely on rule-based machine translation th
 - **RTL Language Support** - Automatic BiDi wrapping for Arabic, Hebrew, Persian, Urdu, and other right-to-left languages
 - **Cost Tracking** - Per-run token usage and cost estimates
 - **Self-Update** - Update the PHAR to the latest version with `--update`
+- **Setup API** - Interactive credential setup with `--setup-api`
 - **List Languages** - Query supported languages per model with `--list-languages`
 - **List Models** - Browse available models with `--list-models`
 - **Single-File Executable** - Download one PHAR file and run it anywhere with PHP 8.1+
@@ -62,6 +63,14 @@ composer install
 
 ## Configuration
 
+### Interactive setup (recommended)
+```bash
+php cf-llm-srt-translate.phar --setup-api
+```
+This prompts for your credentials and saves them to `~/.cf-llm-srt-translate/.env`.
+
+### Manual setup
+
 Set your Cloudflare credentials via environment variables:
 ```bash
 export CLOUDFLARE_API_TOKEN=your_api_token
@@ -74,7 +83,7 @@ CLOUDFLARE_API_TOKEN=your_api_token
 CLOUDFLARE_ACCOUNT_ID=your_account_id
 ```
 
-Environment variables take priority over `.env`.
+Credential priority: environment variables > local `.env` > `~/.cf-llm-srt-translate/.env`
 
 ## Usage
 
@@ -113,6 +122,11 @@ php cf-llm-srt-translate.phar --list-languages --model=qwen3-30b
 php cf-llm-srt-translate.phar --update
 ```
 
+### Setup API credentials
+```bash
+php cf-llm-srt-translate.phar --setup-api
+```
+
 ### All Options
 ```
 php translate.php --input=<file> --language=<lang> [options]
@@ -132,6 +146,7 @@ Optional:
   --list-models            List available models and exit
   --list-languages         List languages for a model (requires --model) and exit
   --update                 Update PHAR to latest release and exit
+  --setup-api              Interactive credential setup and exit
 ```
 
 ## AI Models for Subtitle Translation

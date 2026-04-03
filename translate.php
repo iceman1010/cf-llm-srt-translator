@@ -8,19 +8,7 @@ use CloudflareSrt\Translator;
 use Dotenv\Dotenv;
 use WhiteCube\Lingua\Service as Lingua;
 
-// Load credentials: env vars take priority, fall back to .env
-if (empty(getenv('CLOUDFLARE_API_TOKEN')) || empty(getenv('CLOUDFLARE_ACCOUNT_ID'))) {
-    $envDir = str_starts_with(__DIR__, 'phar://') ? getcwd() : __DIR__;
-    if (file_exists($envDir . '/.env')) {
-        $dotenv = Dotenv::createImmutable($envDir);
-        $dotenv->load();
-    } else {
-        echo "Error: Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID as env vars or in .env\n";
-        exit(1);
-    }
-}
-
-// CLI argument parsing
+// CLI argument parsing (before credential loading, so --setup-api works without credentials)
 $options = getopt('', [
     'input:',
     'output::',
@@ -34,7 +22,92 @@ $options = getopt('', [
     'list-models',
     'list-languages',
     'update',
+    'setup-api',
 ]);
+
+// --- Commands that don't require credentials ---
+
+// Setup API credentials
+if (isset($options['setup-api'])) {
+    $globalDir = getenv('HOME') . '/.cf-llm-srt-translate';
+    $globalEnv = $globalDir . '/.env';
+
+    // Check for existing credentials (env vars > local .env > global .env)
+    $currentToken = getenv('CLOUDFLARE_API_TOKEN');
+    $currentAccountId = getenv('CLOUDFLARE_ACCOUNT_ID');
+
+    if (empty($currentToken) || empty($currentAccountId)) {
+        $envDir = str_starts_with(__DIR__, 'phar://') ? getcwd() : __DIR__;
+        if (file_exists($envDir . '/.env')) {
+            Dotenv::createImmutable($envDir)->load();
+            $currentToken = $currentToken ?: ($_ENV['CLOUDFLARE_API_TOKEN'] ?? '');
+            $currentAccountId = $currentAccountId ?: ($_ENV['CLOUDFLARE_ACCOUNT_ID'] ?? '');
+        }
+    }
+    if (empty($currentToken) || empty($currentAccountId)) {
+        if (file_exists($globalEnv)) {
+            Dotenv::createImmutable($globalDir)->load();
+            $currentToken = $currentToken ?: ($_ENV['CLOUDFLARE_API_TOKEN'] ?? '');
+            $currentAccountId = $currentAccountId ?: ($_ENV['CLOUDFLARE_ACCOUNT_ID'] ?? '');
+        }
+    }
+
+    $hasCredentials = !empty($currentToken) && !empty($currentAccountId);
+
+    if ($hasCredentials) {
+        $masked = substr($currentToken, 0, 4) . '****' . substr($currentToken, -4);
+        echo "\nCurrent credentials found:\n";
+        echo "  Account ID: {$currentAccountId}\n";
+        echo "  API Token:  {$masked}\n\n";
+
+        echo "Change credentials? [y/N]: ";
+        $answer = trim(fgets(STDIN));
+        if (strtolower($answer) !== 'y') {
+            echo "Credentials kept as-is.\n";
+            exit(0);
+        }
+        echo "\n";
+    } else {
+        echo "\nNo credentials found.\n\n";
+    }
+
+    // Prompt for new credentials
+    $maxAttempts = 3;
+    $apiToken = '';
+    $accountId = '';
+
+    for ($i = 0; $i < $maxAttempts; $i++) {
+        $apiToken = trim(readline("Cloudflare API Token: "));
+        $accountId = trim(readline("Cloudflare Account ID: "));
+
+        if (!empty($apiToken) && !empty($accountId)) {
+            break;
+        }
+        echo "Both fields are required. Please try again.\n\n";
+        if ($i === $maxAttempts - 1) {
+            echo "Error: Too many invalid attempts.\n";
+            exit(1);
+        }
+    }
+
+    // Save to ~/.cf-llm-srt-translate/.env
+    if (!is_dir($globalDir)) {
+        if (!mkdir($globalDir, 0700, true)) {
+            echo "Error: Cannot create directory {$globalDir}\n";
+            exit(1);
+        }
+    }
+
+    $content = "CLOUDFLARE_API_TOKEN={$apiToken}\nCLOUDFLARE_ACCOUNT_ID={$accountId}\n";
+    if (file_put_contents($globalEnv, $content) === false) {
+        echo "Error: Cannot write to {$globalEnv}\n";
+        exit(1);
+    }
+    chmod($globalEnv, 0600);
+
+    echo "\nCredentials saved to: {$globalEnv}\n";
+    exit(0);
+}
 
 // List available models
 if (isset($options['list-models'])) {
@@ -163,6 +236,31 @@ if (isset($options['update'])) {
 
     echo "Updated to {$latestTag}.\n";
     exit(0);
+}
+
+// --- Commands that require credentials ---
+
+// Load credentials: env vars > local .env > global ~/.cf-llm-srt-translate/.env
+if (empty(getenv('CLOUDFLARE_API_TOKEN')) || empty(getenv('CLOUDFLARE_ACCOUNT_ID'))) {
+    $envDir = str_starts_with(__DIR__, 'phar://') ? getcwd() : __DIR__;
+    $loaded = false;
+
+    if (file_exists($envDir . '/.env')) {
+        Dotenv::createImmutable($envDir)->load();
+        $loaded = true;
+    }
+    if (!$loaded) {
+        $globalEnv = getenv('HOME') . '/.cf-llm-srt-translate/.env';
+        if (file_exists($globalEnv)) {
+            Dotenv::createImmutable(dirname($globalEnv))->load();
+            $loaded = true;
+        }
+    }
+    if (!$loaded) {
+        echo "Error: Cloudflare credentials not found.\n";
+        echo "Run: php " . (Phar::running(false) ?: 'translate.php') . " --setup-api\n";
+        exit(1);
+    }
 }
 
 // Validate required arguments

@@ -23,9 +23,16 @@ $options = getopt('', [
     'list-languages',
     'update',
     'setup-api',
+    'version',
 ]);
 
 // --- Commands that don't require credentials ---
+
+// Show version
+if (isset($options['version'])) {
+    echo VERSION . "\n";
+    exit(0);
+}
 
 // Setup API credentials
 if (isset($options['setup-api'])) {

@@ -147,6 +147,7 @@ Optional:
   --list-languages         List languages for a model (requires --model) and exit
   --update                 Update PHAR to latest release and exit
   --setup-api              Interactive credential setup and exit
+  --version                Show version and exit
 ```
 
 ## AI Models for Subtitle Translation

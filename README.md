@@ -14,7 +14,7 @@ Traditional subtitle translation tools rely on rule-based machine translation th
 - **6 AI Models** - Choose the best LLM for your needs: budget-friendly Qwen, high-quality GPT-OSS, or specialized SEA-LION for Southeast Asian languages
 - **All Subtitle Formats** - SRT, VTT (WebVTT), ASS, SSA, SUB, DFXP, TTML
 - **Language Auto-Detection** - Accept full names (French), ISO 639-1 (fr), or ISO 639-3 (fra) codes
-- **Reasoning Mode** - LLM reasoning improves translation quality for complex dialogue (disable with `--no-think` for speed)
+- **Reasoning Mode** - Enable LLM reasoning for improved translation quality on complex dialogue (`--think` flag, higher cost)
 - **Resume Interrupted Jobs** - Progress is saved automatically; resume large files after network errors
 - **Partial Result Recovery** - Truncated LLM responses are salvaged; batch size auto-reduces
 - **RTL Language Support** - Automatic BiDi wrapping for Arabic, Hebrew, Persian, Urdu, and other right-to-left languages
@@ -102,9 +102,9 @@ php translate.php --input=movie.srt --language=fr
 php translate.php --input=movie.srt --language=Spanish --model=mistral-small-3.1
 ```
 
-### Disable reasoning for faster, cheaper translation
+### Enable reasoning for higher quality translation
 ```bash
-php translate.php --input=movie.srt --language=French --model=qwen3-30b --no-think
+php translate.php --input=movie.srt --language=French --model=qwen3-30b --think
 ```
 
 ### List available models
@@ -142,7 +142,7 @@ Optional:
   --temperature=<float>    Override temperature (default: 0.6)
   --max-tokens=<n>         Override max tokens (default: 8192)
   --description=<text>     Additional context for translation
-  --no-think               Disable reasoning for reasoning models
+  --think                  Enable reasoning for reasoning models (higher quality, higher cost)
   --list-models            List available models and exit
   --list-languages         List languages for a model (requires --model) and exit
   --update                 Update PHAR to latest release and exit

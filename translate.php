@@ -2,14 +2,14 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-define('VERSION', 'v1.5.0');
+define('VERSION', 'v1.6.0');
 
 use CloudflareSrt\Translator;
 use Dotenv\Dotenv;
 use WhiteCube\Lingua\Service as Lingua;
 
 // CLI argument parsing (before credential loading, so --setup-api works without credentials)
-$shortOpts = 'i:o:l:m:b:t:M:nd';
+$shortOpts = 'i:o:l:m:b:t:M:dr';
 $longOpts = [
     'input:',
     'output::',
@@ -19,7 +19,7 @@ $longOpts = [
     'temperature::',
     'max-tokens::',
     'description::',
-    'no-think',
+    'think',
     'list-models',
     'list-languages',
     'update',
@@ -38,8 +38,7 @@ $shortToLong = [
     't' => 'temperature',
     'M' => 'max-tokens',
     'd' => 'description',
-    'n' => 'no-think',
-    'L' => 'list-models',
+    'r' => 'think',
 ];
 foreach ($shortToLong as $short => $long) {
     if (isset($options[$short])) {
@@ -307,7 +306,7 @@ if (empty($options['input']) || empty($options['language'])) {
     echo "  -t <float>  --temperature=<float>    Override temperature (default: 0.6)\n";
     echo "  -M <n>      --max-tokens=<n>         Override max tokens (default: 8192)\n";
     echo "  -d <text>   --description=<text>     Additional context for translation\n";
-    echo "  -n          --no-think               Disable reasoning for reasoning models\n";
+    echo "  -r          --think                  Enable reasoning for reasoning models (higher quality, higher cost)\n";
     exit(1);
 }
 
@@ -339,7 +338,7 @@ try {
         'temperature' => isset($options['temperature']) ? (float)$options['temperature'] : null,
         'max_tokens' => isset($options['max-tokens']) ? (int)$options['max-tokens'] : null,
         'description' => $options['description'] ?? null,
-        'no_think' => isset($options['no-think']),
+        'think' => isset($options['think']),
     ]);
 
     $translator->translate();

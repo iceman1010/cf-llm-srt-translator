@@ -22,7 +22,7 @@ class Translator
     private string $modelId;
     private CloudflareClient $client;
 
-    private bool $disableThinking;
+    private bool $enableThinking;
     private int $contextWindow;
 
     private int $consecutiveErrors = 0;
@@ -60,7 +60,7 @@ class Translator
         $this->temperature = $options['temperature'] ?? $config['api']['default_temperature'];
         $this->maxTokens = $options['max_tokens'] ?? $config['api']['default_max_tokens'];
         $this->contextWindow = $this->modelConfig['context_window'];
-        $this->disableThinking = $options['no_think'] ?? false;
+        $this->enableThinking = $options['think'] ?? false;
 
         // Output file
         if (isset($options['output_file'])) {
@@ -95,7 +95,7 @@ class Translator
         echo "Target language: {$this->targetLanguage}\n";
         echo "Batch size: {$this->batchSize}\n";
         if ($this->modelConfig['reasoning'] ?? false) {
-            echo "Reasoning: " . ($this->disableThinking ? "disabled (--no-think)" : "enabled") . "\n";
+            echo "Reasoning: " . ($this->enableThinking ? "enabled (--think)" : "disabled") . "\n";
         }
         echo "Output: {$this->outputFile}\n\n";
 
@@ -155,8 +155,8 @@ class Translator
 
             $userMessage = PromptBuilder::formatBatchAsJson($batch);
 
-            // Append /no_think for reasoning models when --no-think flag is used
-            if (($this->modelConfig['no_think_suffix'] ?? false) && $this->disableThinking) {
+            // Append /no_think for reasoning models when thinking is disabled (default)
+            if (($this->modelConfig['no_think_suffix'] ?? false) && !$this->enableThinking) {
                 $userMessage .= ' /no_think';
             }
 

@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-define('VERSION', '@@@version@@@');
+define('VERSION', 'v1.3.2');
 
 use CloudflareSrt\Translator;
 use Dotenv\Dotenv;
@@ -275,7 +275,7 @@ if (empty($options['input']) || empty($options['language'])) {
     echo "Usage: php translate.php --input=<file> --language=<target_language> [options]\n\n";
     echo "Required:\n";
     echo "  --input=<file>           Input subtitle file (.srt, .vtt, .ass, etc.)\n";
-    echo "  --language=<lang>        Target language name or ISO code (e.g., French, fr, fra)\n\n";
+    echo "  --language=<lang>        Target language name or ISO code (e.g., German, de, DE)\n\n";
     echo "Optional:\n";
     echo "  --output=<file>          Output file path (default: auto-generated)\n";
     echo "  --model=<key>            Model key (default: qwen3-30b)\n";
@@ -289,12 +289,17 @@ if (empty($options['input']) || empty($options['language'])) {
     exit(1);
 }
 
-// Validate and resolve language
+// Validate and resolve language (normalize ISO codes to uppercase)
+$langInput = $options['language'];
+if (preg_match('/^[a-z]{2,3}$/i', $langInput)) {
+    $langInput = strtoupper($langInput);
+}
+
 try {
-    $lingua = Lingua::create($options['language']);
+    $lingua = Lingua::create($langInput);
     $targetLanguage = ucfirst($lingua->toName());
 } catch (\Exception $e) {
-    echo "Error: Unknown language \"{$options['language']}\". Use a language name (e.g., French) or ISO code (e.g., fr, fra).\n";
+    echo "Error: Unknown language \"{$options['language']}\". Use a language name (e.g., French) or ISO code (e.g., de, DE, deu).\n";
     exit(1);
 }
 

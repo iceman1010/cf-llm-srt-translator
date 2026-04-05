@@ -62,7 +62,8 @@ RULES;
         $parts[] = "## {$sectionNumber}. Output Format\n"
             . "Respond with ONLY a valid JSON array. Do NOT wrap the output in markdown code fences (no ```json). "
             . "Do NOT include any explanation, commentary, or reasoning before or after the JSON. "
-            . "The response must start with `[` and end with `]`.";
+            . "The response must start with `[` and end with `]`. "
+            . "Do NOT repeat the same translation for multiple items. Each item must be translated independently.";
 
         return implode("\n---\n", $parts);
     }

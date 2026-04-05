@@ -31,6 +31,8 @@ class Translator
     private int $totalInputTokens = 0;
     private int $totalOutputTokens = 0;
     private int $totalThinkTokens = 0;
+    private int $totalApiCalls = 0;
+    private int $partialBatches = 0;
 
     public function __construct(array $options)
     {
@@ -190,6 +192,9 @@ class Translator
                     }
                 }
 
+                // Track API call
+                $this->totalApiCalls++;
+
                 // Extract JSON from response
                 $translatedLines = $this->extractJson($responseText);
 
@@ -200,6 +205,7 @@ class Translator
                 if (count($validLines) < count($batch)) {
                     $oldBatchSize = $this->batchSize;
                     $this->batchSize = max(1, count($validLines));
+                    $this->partialBatches++;
                     echo " Batch size: {$oldBatchSize} -> {$this->batchSize}.";
                 }
 
@@ -677,6 +683,13 @@ class Translator
             $totalCost,
             $inputCost,
             implode(", ", $costParts)
+        );
+
+        // API call statistics
+        echo sprintf(
+            "API calls: %d total, %d partial\n",
+            $this->totalApiCalls,
+            $this->partialBatches
         );
     }
 }

@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-define('VERSION', 'v1.6.2');
+define('VERSION', 'v1.6.3');
 
 use CloudflareSrt\Translator;
 use Dotenv\Dotenv;
@@ -326,13 +326,49 @@ try {
 
 echo "Target language: {$targetLanguage}\n";
 
+function resolveModelKey(string $input, array $availableModels): string
+{
+    $inputLower = strtolower($input);
+    $matches = [];
+
+    foreach ($availableModels as $key) {
+        if (str_starts_with(strtolower($key), $inputLower)) {
+            $matches[] = $key;
+        }
+    }
+
+    if (count($matches) === 1) {
+        return $matches[0];
+    }
+
+    if (count($matches) > 1) {
+        sort($matches);
+        echo "Error: Ambiguous model \"{$input}\". Matches: " . implode(', ', $matches) . "\n";
+        exit(1);
+    }
+
+    echo "Error: Unknown model \"{$input}\". Available models: " . implode(', ', $availableModels) . "\n";
+    exit(1);
+}
+
+$modelsPath = str_starts_with(__DIR__, 'phar://') ? 'phar://' . Phar::running(false) . '/llm-models.json' : __DIR__ . '/llm-models.json';
+$config = json_decode(file_get_contents($modelsPath), true);
+$availableModels = array_keys($config['models']);
+
+$modelInput = $options['model'] ?? 'qwen3-30b';
+$resolvedModel = resolveModelKey($modelInput, $availableModels);
+
+if ($resolvedModel !== $modelInput) {
+    echo "Model resolved: {$modelInput} → {$resolvedModel}\n";
+}
+
 try {
     $translator = new Translator([
         'api_token' => $_ENV['CLOUDFLARE_API_TOKEN'],
         'account_id' => $_ENV['CLOUDFLARE_ACCOUNT_ID'],
         'target_language' => $targetLanguage,
         'input_file' => $options['input'],
-        'model' => $options['model'] ?? 'qwen3-30b',
+        'model' => $resolvedModel,
         'output_file' => $options['output'] ?? null,
         'batch_size' => isset($options['batch-size']) ? (int)$options['batch-size'] : null,
         'temperature' => isset($options['temperature']) ? (float)$options['temperature'] : null,

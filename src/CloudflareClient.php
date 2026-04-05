@@ -118,6 +118,9 @@ class CloudflareClient
         // Normalize to result.response for consistent downstream access
         $data['result']['response'] = $responseText;
 
+        // Extract reasoning content for token tracking
+        $data['result']['reasoning_content'] = $data['result']['choices'][0]['message']['reasoning_content'] ?? null;
+
         return $data;
     }
 }

@@ -30,6 +30,7 @@ class Translator
 
     private int $totalInputTokens = 0;
     private int $totalOutputTokens = 0;
+    private int $totalThinkTokens = 0;
 
     public function __construct(array $options)
     {
@@ -182,6 +183,11 @@ class Translator
                 if (isset($response['result']['usage'])) {
                     $this->totalInputTokens += $response['result']['usage']['prompt_tokens'] ?? 0;
                     $this->totalOutputTokens += $response['result']['usage']['completion_tokens'] ?? 0;
+                    // Estimate think tokens from reasoning_content (Cloudflare doesn't expose this in usage)
+                    $reasoningContent = $response['result']['reasoning_content'] ?? '';
+                    if ($reasoningContent !== '') {
+                        $this->totalThinkTokens += (int)ceil(mb_strlen($reasoningContent) / 3.5);
+                    }
                 }
 
                 // Extract JSON from response
@@ -648,18 +654,29 @@ class Translator
 
         $inputCost = ($this->totalInputTokens / 1_000_000) * $this->modelConfig['input_cost_per_million'];
         $outputCost = ($this->totalOutputTokens / 1_000_000) * $this->modelConfig['output_cost_per_million'];
-        $totalCost = $inputCost + $outputCost;
+        $thinkCost = ($this->totalThinkTokens / 1_000_000) * $this->modelConfig['output_cost_per_million'];
+        $totalCost = $inputCost + $outputCost + $thinkCost;
+
+        $outputParts = [];
+        $costParts = [];
+        $outputParts[] = sprintf("%d output", $this->totalOutputTokens);
+        $costParts[] = sprintf("\$%.4f output", $outputCost);
+
+        if ($this->totalThinkTokens > 0) {
+            $outputParts[] = sprintf("%d think", $this->totalThinkTokens);
+            $costParts[] = sprintf("\$%.4f think", $thinkCost);
+        }
 
         echo sprintf(
-            "Token usage: %d input, %d output\n",
+            "Token usage: %d input, %s\n",
             $this->totalInputTokens,
-            $this->totalOutputTokens
+            implode(", ", $outputParts)
         );
         echo sprintf(
-            "Estimated cost: \$%.4f (input: \$%.4f, output: \$%.4f)\n",
+            "Estimated cost: \$%.4f (input: \$%.4f, %s)\n",
             $totalCost,
             $inputCost,
-            $outputCost
+            implode(", ", $costParts)
         );
     }
 }

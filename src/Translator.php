@@ -201,12 +201,17 @@ class Translator
                 // Validate — returns only valid items, handles partial results
                 $validLines = $this->validateBatch($translatedLines, $batch);
 
-                // Reduce batch size if model truncated the response
+                // Log finish reason for partial batches (for debugging)
                 if (count($validLines) < count($batch)) {
+                    $finishReason = $response['result']['choices'][0]['finish_reason'] ?? 'unknown';
+                    $stopReason = $response['result']['choices'][0]['stop_reason'] ?? null;
+                    $reason = $stopReason ?: $finishReason;
+                    $outputLen = strlen($responseText);
+
                     $oldBatchSize = $this->batchSize;
                     $this->batchSize = max(1, count($validLines));
                     $this->partialBatches++;
-                    echo " Batch size: {$oldBatchSize} -> {$this->batchSize}.";
+                    echo " Batch size: {$oldBatchSize} -> {$this->batchSize} [stop: {$reason}, {$outputLen} chars].";
                 }
 
                 // Apply translations

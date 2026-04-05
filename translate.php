@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-define('VERSION', 'v1.6.0');
+define('VERSION', 'v1.6.1');
 
 use CloudflareSrt\Translator;
 use Dotenv\Dotenv;

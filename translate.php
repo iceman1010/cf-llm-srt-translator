@@ -2,14 +2,15 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-define('VERSION', 'v1.3.2');
+define('VERSION', 'v1.3.3');
 
 use CloudflareSrt\Translator;
 use Dotenv\Dotenv;
 use WhiteCube\Lingua\Service as Lingua;
 
 // CLI argument parsing (before credential loading, so --setup-api works without credentials)
-$options = getopt('', [
+$shortOpts = 'i:o:l:m:b:t:M:nd';
+$longOpts = [
     'input:',
     'output::',
     'language:',
@@ -24,7 +25,28 @@ $options = getopt('', [
     'update',
     'setup-api',
     'version',
-]);
+];
+$options = getopt($shortOpts, $longOpts);
+
+// Normalize short options to long option names
+$shortToLong = [
+    'i' => 'input',
+    'o' => 'output',
+    'l' => 'language',
+    'm' => 'model',
+    'b' => 'batch-size',
+    't' => 'temperature',
+    'M' => 'max-tokens',
+    'd' => 'description',
+    'n' => 'no-think',
+    'L' => 'list-models',
+];
+foreach ($shortToLong as $short => $long) {
+    if (isset($options[$short])) {
+        $options[$long] = $options[$short];
+        unset($options[$short]);
+    }
+}
 
 // --- Commands that don't require credentials ---
 
@@ -272,20 +294,20 @@ if (empty(getenv('CLOUDFLARE_API_TOKEN')) || empty(getenv('CLOUDFLARE_ACCOUNT_ID
 
 // Validate required arguments
 if (empty($options['input']) || empty($options['language'])) {
-    echo "Usage: php translate.php --input=<file> --language=<target_language> [options]\n\n";
+    echo "Usage: php translate.php -i <file> -l <language> [options]\n";
+    echo "   or: php translate.php --input=<file> --language=<language> [options]\n\n";
     echo "Required:\n";
-    echo "  --input=<file>           Input subtitle file (.srt, .vtt, .ass, etc.)\n";
-    echo "  --language=<lang>        Target language name or ISO code (e.g., German, de, DE)\n\n";
+    echo "  -i <file>   --input=<file>          Input subtitle file (.srt, .vtt, .ass, etc.)\n";
+    echo "  -l <lang>   --language=<lang>        Target language (e.g., German, de, DE)\n\n";
     echo "Optional:\n";
-    echo "  --output=<file>          Output file path (default: auto-generated)\n";
-    echo "  --model=<key>            Model key (default: qwen3-30b)\n";
-    echo "                           Available: qwen3-30b, gpt-oss-120b, llama-4-scout, gemma-3-12b, mistral-small-3.1, sea-lion-27b\n";
-    echo "  --batch-size=<n>         Override batch size from model config\n";
-    echo "  --temperature=<float>    Override temperature (default: 0.6)\n";
-    echo "  --max-tokens=<n>         Override max tokens (default: 8192)\n";
-    echo "  --description=<text>     Additional context for translation\n";
-    echo "  --no-think               Disable reasoning for reasoning models (faster, cheaper, lower quality)\n";
-    echo "  --list-models            List available models and exit\n";
+    echo "  -o <file>   --output=<file>          Output file path (default: auto-generated)\n";
+    echo "  -m <key>    --model=<key>           Model key (default: qwen3-30b)\n";
+    echo "              --list-models            List available models and exit\n";
+    echo "  -b <n>      --batch-size=<n>         Override batch size from model config\n";
+    echo "  -t <float>  --temperature=<float>    Override temperature (default: 0.6)\n";
+    echo "  -M <n>      --max-tokens=<n>         Override max tokens (default: 8192)\n";
+    echo "  -d <text>   --description=<text>     Additional context for translation\n";
+    echo "  -n          --no-think               Disable reasoning for reasoning models\n";
     exit(1);
 }
 

@@ -99,6 +99,9 @@ class Translator
         }
         echo "Output: {$this->outputFile}\n\n";
 
+        // Start timing
+        $startTime = microtime(true);
+
         // Build system prompt
         $systemPrompt = PromptBuilder::buildSystemInstruction($this->targetLanguage, $this->description);
 
@@ -309,7 +312,9 @@ class Translator
         }
 
         echo "\nTranslation completed successfully!\n";
+        $elapsed = round(microtime(true) - $startTime, 2);
         echo "Output saved to: {$this->outputFile}\n";
+        echo "Time: {$elapsed}s\n";
         $this->logTokenUsage();
     }
 

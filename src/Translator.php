@@ -306,7 +306,7 @@ class Translator
 
                 // Dump raw response for debugging JSON/validation errors
                 if ($isJsonError && isset($responseText)) {
-                    $debugFile = $this->inputFile . '.debug.txt';
+                    $debugFile = $this->inputFile . ".{$this->modelKey}.debug.txt";
                     $timestamp = date('H:i:s');
                     $batchInfo = "=== Batch starting at index {$i} @ {$timestamp} ===\n";
                     file_put_contents($debugFile, $batchInfo . $responseText . "\n\n", FILE_APPEND);
@@ -325,12 +325,22 @@ class Translator
                     $this->batchSize = max(1, (int)($this->batchSize * 0.5));
                     echo " Timeout. Batch size: {$oldBatchSize} -> {$this->batchSize}. Retrying...\n";
                     sleep(5);
-                } elseif (str_contains($msg, '429')) {
+                } elseif (str_contains($msg, '429 Rate Limited')) {
                     $this->consecutiveErrors++;
                     $this->rateLimitErrors++;
-                    $wait = min(30 * pow(2, $this->rateLimitErrors - 1), 300);
+                    // Extract wait time from message if present
+                    if (preg_match('/waiting (\d+)/', $msg, $matches)) {
+                        $wait = (int)$matches[1];
+                    } else {
+                        $wait = min(30 * pow(2, $this->rateLimitErrors - 1), 300);
+                    }
                     echo " Rate limited ({$this->rateLimitErrors} total). Waiting {$wait}s...\n";
                     sleep((int)$wait);
+                } elseif (str_contains($msg, '429 Quota Exceeded')) {
+                    echo " Daily API quota exhausted. Cannot continue.\n";
+                    $this->saveProgress($progressFile, $i, $translations);
+                    echo "Progress saved. Resume tomorrow or when quota resets.\n";
+                    return;
                 } elseif (str_contains($msg, '500') || str_contains($msg, '503')) {
                     $this->consecutiveErrors++;
                     echo " Server error. Waiting 60s...\n";

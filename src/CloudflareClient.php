@@ -71,19 +71,25 @@ class CloudflareClient
         }
 
         if ($httpCode === 429) {
-            // Get response headers to check Retry-After
-            $headers = curl_getinfo($ch, CURLINFO_HEADER_OUT);
+            $preview = mb_substr($response, 0, 500);
+            
+            // Check if it's a rate limit (temporary) or quota exhausted (permanent for today)
+            // Rate limit: "rate limit", "too many requests"
+            // Quota exhausted: "quota", "neurons", "exceeded", "limit reached"
+            $isRateLimit = preg_match('/rate\s*limit|too\s*many\s*requests/i', $preview);
+            $isQuotaExceeded = preg_match('/quota|neurons|exceeded|limit\s*reached/i', $preview);
+            
             $retryAfter = null;
             if (preg_match('/retry-after:\s*(\d+)/i', $response, $matches)) {
                 $retryAfter = (int)$matches[1];
             }
-            $preview = mb_substr($response, 0, 500);
-            $msg = "429 Rate limited";
-            if ($retryAfter) {
-                $msg .= " (Retry-After: {$retryAfter}s)";
+            
+            if ($isRateLimit || $retryAfter) {
+                $wait = $retryAfter ?? 60;
+                throw new \RuntimeException("429 Rate Limited: waiting {$wait}s\nResponse: {$preview}");
+            } else {
+                throw new \RuntimeException("429 Quota Exceeded: daily API quota exhausted\nResponse: {$preview}");
             }
-            $msg .= "\nResponse body: {$preview}";
-            throw new \RuntimeException($msg);
         }
 
         if ($httpCode >= 500) {

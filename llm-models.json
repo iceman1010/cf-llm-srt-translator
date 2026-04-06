@@ -5,18 +5,6 @@
         "default_max_tokens": 8192
     },
     "models": {
-        "qwen3-30b": {
-            "model_id": "@cf/qwen/qwen3-30b-a3b-fp8",
-            "input_cost_per_million": 0.051,
-            "output_cost_per_million": 0.34,
-            "context_window": 32768,
-            "batch_size": 300,
-            "reasoning": true,
-            "no_think_suffix": true,
-            "strip_html": false,
-            "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lt","uk","be","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk","am","ha","yo","ig","zu","xh","so","mg","rw","sn","ny","ku","ps","sd","tg","tk","ky","tt","ug","jv","su","ceb","mi","sm","haw","yi","eo","la","ht","gd"],
-            "notes": "Cheapest model. Append /no_think to disable reasoning. 99/102 tested (lv, ka, bn failed)."
-        },
         "gpt-oss-120b": {
             "model_id": "@cf/openai/gpt-oss-120b",
             "input_cost_per_million": 0.35,

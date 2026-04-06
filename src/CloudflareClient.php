@@ -71,7 +71,19 @@ class CloudflareClient
         }
 
         if ($httpCode === 429) {
-            throw new \RuntimeException("429 Rate limited");
+            // Get response headers to check Retry-After
+            $headers = curl_getinfo($ch, CURLINFO_HEADER_OUT);
+            $retryAfter = null;
+            if (preg_match('/retry-after:\s*(\d+)/i', $response, $matches)) {
+                $retryAfter = (int)$matches[1];
+            }
+            $preview = mb_substr($response, 0, 500);
+            $msg = "429 Rate limited";
+            if ($retryAfter) {
+                $msg .= " (Retry-After: {$retryAfter}s)";
+            }
+            $msg .= "\nResponse body: {$preview}";
+            throw new \RuntimeException($msg);
         }
 
         if ($httpCode >= 500) {

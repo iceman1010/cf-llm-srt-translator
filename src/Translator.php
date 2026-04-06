@@ -27,6 +27,7 @@ class Translator
 
     private int $consecutiveErrors = 0;
     private int $maxConsecutiveErrors = 3;
+    private int $rateLimitErrors = 0;
 
     private int $totalInputTokens = 0;
     private int $totalOutputTokens = 0;
@@ -34,6 +35,8 @@ class Translator
     private int $totalApiCalls = 0;
     private int $partialBatches = 0;
     private int $qualityIssues = 0;
+    private int $retryCount = 1;
+    private int $currentRetry = 0;
 
     public function __construct(array $options)
     {
@@ -44,6 +47,7 @@ class Translator
         $this->modelKey = $options['model'] ?? 'qwen3-30b';
         $this->configPath = $options['config_path'] ?? __DIR__ . '/../llm-models.json';
         $this->description = $options['description'] ?? null;
+        $this->retryCount = max(0, (int)($options['retry'] ?? 1));
 
         // Load model config
         $configJson = file_get_contents($this->configPath);
@@ -237,20 +241,25 @@ class Translator
                     echo "{$partialPrefix} [stop: {$reason}, {$outputLen} chars].";
                 }
 
-                // Track quality issues
+                // Track quality issues - retry on merged/duplicate content
                 if ($hasMerged) {
                     $this->qualityIssues++;
+                    $this->currentRetry++;
 
-                    // Retry on merged/duplicate issues (up to 2 retries per batch)
-                    static $qualityRetryCount = 0;
-                    $qualityRetryCount++;
-                    if ($qualityRetryCount <= 2) {
-                        echo " Retrying...";
+                    if ($this->currentRetry <= $this->retryCount) {
+                        echo sprintf(" [retry %d/%d]", $this->currentRetry, $this->retryCount);
                         sleep(1);
                         continue;
                     }
-                    $qualityRetryCount = 0;
-                    echo " Keeping partial results.";
+
+                    // Exhausted retries - abort
+                    if (file_exists($progressFile)) {
+                        unlink($progressFile);
+                    }
+                    throw new \RuntimeException(
+                        "Model {$this->modelKey} produced merged/duplicate content after {$this->retryCount} retry(s).\n" .
+                        "Consider using: llama-4-scout, mistral-small-3.1, or gemma-3-12b instead."
+                    );
                 }
 
                 // Apply translations
@@ -285,6 +294,13 @@ class Translator
 
             } catch (\RuntimeException $e) {
                 $msg = $e->getMessage();
+
+                // Abort immediately on merged/duplicate content - don't retry
+                if (str_contains($msg, 'merged/duplicate content')) {
+                    echo "\nAborted: {$msg}\n";
+                    throw $e;
+                }
+
                 $isJsonError = str_contains($msg, 'JSON') || str_contains($msg, 'Count mismatch');
 
                 // Dump raw response for debugging JSON/validation errors
@@ -308,8 +324,9 @@ class Translator
                     sleep(5);
                 } elseif (str_contains($msg, '429')) {
                     $this->consecutiveErrors++;
-                    $wait = min(30 * pow(2, $this->consecutiveErrors - 1), 120);
-                    echo " Rate limited. Waiting {$wait}s...\n";
+                    $this->rateLimitErrors++;
+                    $wait = min(30 * pow(2, $this->rateLimitErrors - 1), 300);
+                    echo " Rate limited ({$this->rateLimitErrors} total). Waiting {$wait}s...\n";
                     sleep((int)$wait);
                 } elseif (str_contains($msg, '500') || str_contains($msg, '503')) {
                     $this->consecutiveErrors++;
@@ -535,17 +552,6 @@ class Translator
             $issues[] = "duplicates: " . implode(',', array_unique($duplicates));
         }
 
-        // Check for merged content (translated >> original length)
-        foreach ($valid as $line) {
-            $idx = $line['index'];
-            $translatedLen = mb_strlen($line['text']);
-            $originalLen = mb_strlen($originalByIndex[$idx]['text'] ?? '');
-            if ($originalLen > 0 && $translatedLen > $originalLen * 2) {
-                $issues[] = "merged ({$translatedLen} vs {$originalLen} orig, " . round($translatedLen / $originalLen, 1) . "x)";
-                break;
-            }
-        }
-
         sort($returnedIndexes);
         $returnedMin = $returnedIndexes[0] ?? $expectedMinIndex;
         if ($returnedMin > $expectedMinIndex) {
@@ -563,6 +569,18 @@ class Translator
         }
         if (count($missingIndexes) > 0 && count($missingIndexes) < $expectedCount) {
             $issues[] = "missing: " . implode(',', array_slice($missingIndexes, 0, 5)) . (count($missingIndexes) > 5 ? "..." : "");
+
+            // Only check for merged content if there are missing indexes
+            foreach ($valid as $line) {
+                $idx = $line['index'];
+                $translatedTokens = $this->estimateTokens($line['text']);
+                $originalTokens = $this->estimateTokens($originalByIndex[$idx]['text'] ?? '');
+                // If translated is 2x+ the original tokens AND there are missing indexes, it's merged
+                if ($originalTokens > 0 && $translatedTokens > $originalTokens * 2) {
+                    $issues[] = "merged ({$translatedTokens} vs {$originalTokens} tokens, " . round($translatedTokens / $originalTokens, 1) . "x)";
+                    break;
+                }
+            }
         }
 
         return [

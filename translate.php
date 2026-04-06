@@ -9,7 +9,7 @@ use Dotenv\Dotenv;
 use WhiteCube\Lingua\Service as Lingua;
 
 // CLI argument parsing (before credential loading, so --setup-api works without credentials)
-$shortOpts = 'i:o:l:m:b:t:M:dr';
+$shortOpts = 'i:o:l:m:b:t:M:drR:';
 $longOpts = [
     'input:',
     'output::',
@@ -20,6 +20,7 @@ $longOpts = [
     'max-tokens::',
     'description::',
     'think',
+    'retry::',
     'list-models',
     'list-languages',
     'update',
@@ -39,6 +40,7 @@ $shortToLong = [
     'M' => 'max-tokens',
     'd' => 'description',
     'r' => 'think',
+    'R' => 'retry',
 ];
 foreach ($shortToLong as $short => $long) {
     if (isset($options[$short])) {
@@ -307,6 +309,7 @@ if (empty($options['input']) || empty($options['language'])) {
     echo "  -M <n>      --max-tokens=<n>         Override max tokens (default: 8192)\n";
     echo "  -d <text>   --description=<text>     Additional context for translation\n";
     echo "  -r          --think                  Enable reasoning for reasoning models (higher quality, higher cost)\n";
+    echo "  -R <n>      --retry=<n>              Number of retries on merged content (default: 1)\n";
     exit(1);
 }
 
@@ -375,6 +378,7 @@ try {
         'max_tokens' => isset($options['max-tokens']) ? (int)$options['max-tokens'] : null,
         'description' => $options['description'] ?? null,
         'think' => isset($options['think']),
+        'retry' => isset($options['retry']) ? (int)$options['retry'] : 1,
     ]);
 
     $translator->translate();

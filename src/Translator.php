@@ -24,6 +24,8 @@ class Translator
 
     private bool $enableThinking;
     private int $contextWindow;
+    private string $responseFormat;
+    private bool $debugMode;
 
     private int $consecutiveErrors = 0;
     private int $maxConsecutiveErrors = 3;
@@ -66,6 +68,11 @@ class Translator
         $this->maxTokens = $options['max_tokens'] ?? $config['api']['default_max_tokens'];
         $this->contextWindow = $this->modelConfig['context_window'];
         $this->enableThinking = $options['think'] ?? false;
+        $this->responseFormat = $options['format'] ?? 'json';
+        if (!in_array($this->responseFormat, ['json', 'simple'])) {
+            throw new \RuntimeException("Invalid format: {$this->responseFormat}. Must be 'json' or 'simple'.");
+        }
+        $this->debugMode = $options['debug'] ?? false;
 
         // Output file
         if (isset($options['output_file'])) {
@@ -107,8 +114,18 @@ class Translator
         // Start timing
         $startTime = microtime(true);
 
-        // Build system prompt
-        $systemPrompt = PromptBuilder::buildSystemInstruction($this->targetLanguage, $this->description);
+        // Build system prompt based on format
+        if ($this->responseFormat === 'simple') {
+            $systemPrompt = PromptBuilder::buildSimpleSystemPrompt($this->targetLanguage);
+        } else {
+            $systemPrompt = PromptBuilder::buildSystemPrompt($this->targetLanguage);
+        }
+
+        if ($this->debugMode) {
+            echo "\n=== SYSTEM PROMPT ===\n";
+            echo $systemPrompt . "\n";
+            echo "=== END SYSTEM PROMPT ===\n\n";
+        }
 
         // Check for progress file
         $progressFile = $this->inputFile . '.progress';
@@ -161,11 +178,21 @@ class Translator
                 ];
             }
 
-            $userMessage = PromptBuilder::formatBatchAsJson($batch);
+            if ($this->responseFormat === 'simple') {
+                $userMessage = PromptBuilder::formatBatchAsSimple($batch);
+            } else {
+                $userMessage = PromptBuilder::formatBatchAsJson($batch);
+            }
 
             // Append /no_think for reasoning models when thinking is disabled (default)
             if (($this->modelConfig['no_think_suffix'] ?? false) && !$this->enableThinking) {
                 $userMessage .= ' /no_think';
+            }
+
+            if ($this->debugMode && $i === 0) {
+                echo "=== FIRST USER MESSAGE ===\n";
+                echo $userMessage . "\n";
+                echo "=== END USER MESSAGE ===\n\n";
             }
 
             echo sprintf(
@@ -203,8 +230,12 @@ class Translator
                 // Track API call
                 $this->totalApiCalls++;
 
-                // Extract JSON from response
-                $translatedLines = $this->extractJson($responseText);
+                // Parse response based on format
+                if ($this->responseFormat === 'simple') {
+                    $translatedLines = $this->parseSimpleResponse($responseText);
+                } else {
+                    $translatedLines = $this->extractJson($responseText);
+                }
 
                 // Validate — returns valid items and issues
                 $validation = $this->validateBatch($translatedLines, $batch);
@@ -212,15 +243,6 @@ class Translator
                 $issues = $validation['issues'];
 
                 // Check for quality issues that warrant retry
-                $hasQualityIssues = !empty($issues);
-                $hasMerged = false;
-                foreach ($issues as $issue) {
-                    if (strpos($issue, 'merged') !== false || strpos($issue, 'duplicates') !== false) {
-                        $hasMerged = true;
-                        break;
-                    }
-                }
-
                 // Log finish reason
                 $finishReason = $response['result']['choices'][0]['finish_reason'] ?? 'unknown';
                 $stopReason = $response['result']['choices'][0]['stop_reason'] ?? null;
@@ -234,32 +256,11 @@ class Translator
                     $this->batchSize = max(1, $validation['validCount']);
                 }
 
-                if ($hasQualityIssues) {
+                if (!empty($issues)) {
                     $issueStr = " [" . implode(', ', $issues) . "]";
                     echo "{$partialPrefix}{$issueStr} [stop: {$reason}, {$outputLen} chars].";
                 } else {
                     echo "{$partialPrefix} [stop: {$reason}, {$outputLen} chars].";
-                }
-
-                // Track quality issues - retry on merged/duplicate content
-                if ($hasMerged) {
-                    $this->qualityIssues++;
-                    $this->currentRetry++;
-
-                    if ($this->currentRetry <= $this->retryCount) {
-                        echo sprintf(" [retry %d/%d]", $this->currentRetry, $this->retryCount);
-                        sleep(1);
-                        continue;
-                    }
-
-                    // Exhausted retries - abort
-                    if (file_exists($progressFile)) {
-                        unlink($progressFile);
-                    }
-                    throw new \RuntimeException(
-                        "Model {$this->modelKey} produced merged/duplicate content after {$this->retryCount} retry(s).\n" .
-                        "Consider using: llama-4-scout, mistral-small-3.1, or gemma-3-12b instead."
-                    );
                 }
 
                 // Apply translations
@@ -305,9 +306,11 @@ class Translator
 
                 // Dump raw response for debugging JSON/validation errors
                 if ($isJsonError && isset($responseText)) {
-                    $debugFile = $this->inputFile . '.debug-response.txt';
-                    file_put_contents($debugFile, $responseText);
-                    echo " (raw response saved to {$debugFile})\n";
+                    $debugFile = $this->inputFile . '.debug.txt';
+                    $timestamp = date('H:i:s');
+                    $batchInfo = "=== Batch starting at index {$i} @ {$timestamp} ===\n";
+                    file_put_contents($debugFile, $batchInfo . $responseText . "\n\n", FILE_APPEND);
+                    echo " (raw response appended to {$debugFile})\n";
                 }
                 $isTimeout = str_contains($msg, '408') || str_contains($msg, 'Timeout') || str_contains($msg, 'timed out');
 
@@ -451,6 +454,13 @@ class Translator
             return $result;
         }
 
+        // Fix "text"," instead of "text":" (common typo)
+        $fixed = preg_replace('/"text","/', '"text":"', $text);
+        $result = json_decode($fixed, true);
+        if (is_array($result) && $this->isListOfDicts($result)) {
+            return $result;
+        }
+
         // Fix missing } before ] — e.g. "text":"...!"] → "text":"...!"}]
         $fixed = preg_replace('/"\s*]$/', '"}]', $text);
         $result = json_decode($fixed, true);
@@ -480,6 +490,52 @@ class Translator
         }
 
         return null;
+    }
+
+    /**
+     * Parse simple format response ([N]:\ntext\n\n[N]:\ntext).
+     * Returns array of ['index' => string, 'text' => string].
+     */
+    private function parseSimpleResponse(string $text): array
+    {
+        $text = preg_replace('/^```(?:txt|text)?\s*/m', '', $text);
+        $text = preg_replace('/```\s*$/m', '', $text);
+        $text = trim($text);
+        
+        $result = [];
+        $currentIndex = null;
+        $currentText = [];
+        
+        $lines = explode("\n", $text);
+        
+        foreach ($lines as $line) {
+            if (preg_match('/^\[(\d+)\]:\s*(.*)$/', $line, $matches)) {
+                if ($currentIndex !== null) {
+                    $text = trim(implode("\n", $currentText));
+                    if ($text !== '') {
+                        $result[] = ['index' => $currentIndex, 'text' => $text];
+                    }
+                }
+                $currentIndex = $matches[1];
+                $currentText = $matches[2] !== '' ? [$matches[2]] : [];
+            } elseif ($currentIndex !== null) {
+                $currentText[] = $line;
+            }
+        }
+        
+        if ($currentIndex !== null) {
+            $text = trim(implode("\n", $currentText));
+            if ($text !== '') {
+                $result[] = ['index' => $currentIndex, 'text' => $text];
+            }
+        }
+        
+        if (empty($result)) {
+            $preview = mb_substr($text, 0, 300);
+            throw new \RuntimeException("Failed to parse simple format from response. Preview: {$preview}");
+        }
+        
+        return $result;
     }
 
     private function isListOfDicts(array $data): bool
@@ -569,18 +625,6 @@ class Translator
         }
         if (count($missingIndexes) > 0 && count($missingIndexes) < $expectedCount) {
             $issues[] = "missing: " . implode(',', array_slice($missingIndexes, 0, 5)) . (count($missingIndexes) > 5 ? "..." : "");
-
-            // Only check for merged content if there are missing indexes
-            foreach ($valid as $line) {
-                $idx = $line['index'];
-                $translatedTokens = $this->estimateTokens($line['text']);
-                $originalTokens = $this->estimateTokens($originalByIndex[$idx]['text'] ?? '');
-                // If translated is 2x+ the original tokens AND there are missing indexes, it's merged
-                if ($originalTokens > 0 && $translatedTokens > $originalTokens * 2) {
-                    $issues[] = "merged ({$translatedTokens} vs {$originalTokens} tokens, " . round($translatedTokens / $originalTokens, 1) . "x)";
-                    break;
-                }
-            }
         }
 
         return [

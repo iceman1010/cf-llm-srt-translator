@@ -33,6 +33,7 @@ class Translator
     private int $totalThinkTokens = 0;
     private int $totalApiCalls = 0;
     private int $partialBatches = 0;
+    private int $qualityIssues = 0;
 
     public function __construct(array $options)
     {
@@ -201,20 +202,55 @@ class Translator
                 // Extract JSON from response
                 $translatedLines = $this->extractJson($responseText);
 
-                // Validate — returns only valid items, handles partial results
-                $validLines = $this->validateBatch($translatedLines, $batch);
+                // Validate — returns valid items and issues
+                $validation = $this->validateBatch($translatedLines, $batch);
+                $validLines = $validation['valid'];
+                $issues = $validation['issues'];
 
-                // Log finish reason for partial batches (for debugging)
-                if (count($validLines) < count($batch)) {
-                    $finishReason = $response['result']['choices'][0]['finish_reason'] ?? 'unknown';
-                    $stopReason = $response['result']['choices'][0]['stop_reason'] ?? null;
-                    $reason = $stopReason ?: $finishReason;
-                    $outputLen = strlen($responseText);
+                // Check for quality issues that warrant retry
+                $hasQualityIssues = !empty($issues);
+                $hasMerged = false;
+                foreach ($issues as $issue) {
+                    if (strpos($issue, 'merged') !== false || strpos($issue, 'duplicates') !== false) {
+                        $hasMerged = true;
+                        break;
+                    }
+                }
 
-                    $oldBatchSize = $this->batchSize;
-                    $this->batchSize = max(1, count($validLines));
+                // Log finish reason
+                $finishReason = $response['result']['choices'][0]['finish_reason'] ?? 'unknown';
+                $stopReason = $response['result']['choices'][0]['stop_reason'] ?? null;
+                $reason = $stopReason ?: $finishReason;
+                $outputLen = strlen($responseText);
+
+                $partialPrefix = "";
+                if ($validation['validCount'] < $validation['expectedCount']) {
                     $this->partialBatches++;
-                    echo " Batch size: {$oldBatchSize} -> {$this->batchSize} [stop: {$reason}, {$outputLen} chars].";
+                    $partialPrefix = sprintf(" Partial: %d/%d", $validation['validCount'], $validation['expectedCount']);
+                    $this->batchSize = max(1, $validation['validCount']);
+                }
+
+                if ($hasQualityIssues) {
+                    $issueStr = " [" . implode(', ', $issues) . "]";
+                    echo "{$partialPrefix}{$issueStr} [stop: {$reason}, {$outputLen} chars].";
+                } else {
+                    echo "{$partialPrefix} [stop: {$reason}, {$outputLen} chars].";
+                }
+
+                // Track quality issues
+                if ($hasMerged) {
+                    $this->qualityIssues++;
+
+                    // Retry on merged/duplicate issues (up to 2 retries per batch)
+                    static $qualityRetryCount = 0;
+                    $qualityRetryCount++;
+                    if ($qualityRetryCount <= 2) {
+                        echo " Retrying...";
+                        sleep(1);
+                        continue;
+                    }
+                    $qualityRetryCount = 0;
+                    echo " Keeping partial results.";
                 }
 
                 // Apply translations
@@ -316,6 +352,18 @@ class Translator
         echo "Output saved to: {$this->outputFile}\n";
         echo "Time: {$elapsed}s\n";
         $this->logTokenUsage();
+
+        // Model recommendation if quality issues detected
+        if ($this->qualityIssues > 0) {
+            echo "\n⚠ Model {$this->modelKey} had {$this->qualityIssues} quality issue(s) (merged/duplicate content).\n";
+            echo "Consider using one of these alternatives for better reliability:\n";
+            $alternatives = ['llama-4-scout', 'mistral-small-3.1', 'gemma-3-12b'];
+            foreach ($alternatives as $alt) {
+                if ($alt !== $this->modelKey) {
+                    echo "  - {$alt}\n";
+                }
+            }
+        }
     }
 
     /**
@@ -433,7 +481,7 @@ class Translator
 
     /**
      * Validate translated batch against original batch.
-     * Returns only valid items. Logs partial results instead of throwing on count mismatch.
+     * Returns array with 'valid' items and 'issues' found.
      */
     private function validateBatch(array $translated, array $original): array
     {
@@ -443,10 +491,15 @@ class Translator
             $originalByIndex[$item['index']] = $item;
         }
 
+        $expectedMinIndex = min(array_map('intval', $originalIndexes));
+        $expectedMaxIndex = max(array_map('intval', $originalIndexes));
+        $expectedCount = count($original);
+
         $valid = [];
         $seenIndexes = [];
         $duplicates = [];
         $textLengths = [];
+        $returnedIndexes = [];
 
         foreach ($translated as $line) {
             if (!isset($line['index']) || !isset($line['text'])) {
@@ -456,7 +509,9 @@ class Translator
                 continue;
             }
 
-            // Track duplicates
+            $idx = (int)$line['index'];
+            $returnedIndexes[] = $idx;
+
             if (isset($seenIndexes[$line['index']])) {
                 $duplicates[] = $line['index'];
             }
@@ -464,7 +519,6 @@ class Translator
 
             $textLengths[] = mb_strlen($line['text']);
 
-            // If translation is empty, keep original text
             if ($line['text'] === '' && ($originalByIndex[$line['index']]['text'] ?? '') !== '') {
                 $line['text'] = $originalByIndex[$line['index']]['text'];
             }
@@ -475,27 +529,48 @@ class Translator
             throw new \RuntimeException("No valid translations in response");
         }
 
-        // Detect anomalies
         $issues = [];
+
         if (!empty($duplicates)) {
             $issues[] = "duplicates: " . implode(',', array_unique($duplicates));
         }
-        if (count($textLengths) > 1) {
-            $avgLen = array_sum($textLengths) / count($textLengths);
-            $maxLen = max($textLengths);
-            if ($maxLen > $avgLen * 3) {
-                $issues[] = "merged content (max len " . round($maxLen / $avgLen, 1) . "x avg)";
+
+        // Check for merged content (translated >> original length)
+        foreach ($valid as $line) {
+            $idx = $line['index'];
+            $translatedLen = mb_strlen($line['text']);
+            $originalLen = mb_strlen($originalByIndex[$idx]['text'] ?? '');
+            if ($originalLen > 0 && $translatedLen > $originalLen * 2) {
+                $issues[] = "merged ({$translatedLen} vs {$originalLen} orig, " . round($translatedLen / $originalLen, 1) . "x)";
+                break;
             }
         }
 
-        if (count($valid) < count($original)) {
-            $issueStr = !empty($issues) ? " [" . implode(', ', $issues) . "]" : "";
-            echo sprintf(" Partial: %d/%d.%s", count($valid), count($original), $issueStr);
-        } elseif (!empty($issues)) {
-            echo sprintf(" Warning: %s", implode(', ', $issues));
+        sort($returnedIndexes);
+        $returnedMin = $returnedIndexes[0] ?? $expectedMinIndex;
+        if ($returnedMin > $expectedMinIndex) {
+            $skipped = $returnedMin - $expectedMinIndex;
+            $issues[] = "skipped first {$skipped}";
         }
 
-        return $valid;
+        $returnedSet = array_flip($returnedIndexes);
+        $expectedSet = range($expectedMinIndex, $expectedMaxIndex);
+        $missingIndexes = [];
+        foreach ($expectedSet as $idx) {
+            if (!isset($returnedSet[$idx])) {
+                $missingIndexes[] = $idx;
+            }
+        }
+        if (count($missingIndexes) > 0 && count($missingIndexes) < $expectedCount) {
+            $issues[] = "missing: " . implode(',', array_slice($missingIndexes, 0, 5)) . (count($missingIndexes) > 5 ? "..." : "");
+        }
+
+        return [
+            'valid' => $valid,
+            'issues' => $issues,
+            'validCount' => count($valid),
+            'expectedCount' => $expectedCount,
+        ];
     }
 
     /**

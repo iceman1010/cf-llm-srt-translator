@@ -444,6 +444,10 @@ class Translator
         }
 
         $valid = [];
+        $seenIndexes = [];
+        $duplicates = [];
+        $textLengths = [];
+
         foreach ($translated as $line) {
             if (!isset($line['index']) || !isset($line['text'])) {
                 continue;
@@ -451,6 +455,15 @@ class Translator
             if (!in_array($line['index'], $originalIndexes, true)) {
                 continue;
             }
+
+            // Track duplicates
+            if (isset($seenIndexes[$line['index']])) {
+                $duplicates[] = $line['index'];
+            }
+            $seenIndexes[$line['index']] = true;
+
+            $textLengths[] = mb_strlen($line['text']);
+
             // If translation is empty, keep original text
             if ($line['text'] === '' && ($originalByIndex[$line['index']]['text'] ?? '') !== '') {
                 $line['text'] = $originalByIndex[$line['index']]['text'];
@@ -462,8 +475,24 @@ class Translator
             throw new \RuntimeException("No valid translations in response");
         }
 
+        // Detect anomalies
+        $issues = [];
+        if (!empty($duplicates)) {
+            $issues[] = "duplicates: " . implode(',', array_unique($duplicates));
+        }
+        if (count($textLengths) > 1) {
+            $avgLen = array_sum($textLengths) / count($textLengths);
+            $maxLen = max($textLengths);
+            if ($maxLen > $avgLen * 3) {
+                $issues[] = "merged content (max len " . round($maxLen / $avgLen, 1) . "x avg)";
+            }
+        }
+
         if (count($valid) < count($original)) {
-            echo sprintf(" Partial: %d/%d.", count($valid), count($original));
+            $issueStr = !empty($issues) ? " [" . implode(', ', $issues) . "]" : "";
+            echo sprintf(" Partial: %d/%d.%s", count($valid), count($original), $issueStr);
+        } elseif (!empty($issues)) {
+            echo sprintf(" Warning: %s", implode(', ', $issues));
         }
 
         return $valid;

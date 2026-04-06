@@ -8,12 +8,12 @@ Mir geht es gut, danke.
 
 3
 00:00:07,000 --> 00:00:10,000
-Was ein schöner Tag!
+Ein wunderschöner Tag!
 
 4
 00:00:11,000 --> 00:00:14,000
-Lass uns ins Park
-und die Sonne genießen.
+Gehen wir in den Park
+und genießen wir das Sonnenlicht.
 
 5
 00:00:15,000 --> 00:00:18,000

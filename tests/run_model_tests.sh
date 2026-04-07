@@ -49,11 +49,12 @@ for model in $MODELS; do
             echo "----------------------------------------" >> "$LOG_FILE"
             
             $TRANSLATE -i "$LONG_FILE" -l German -m "$model" -f "$format" -o "$output" $think_flag 2>&1 | tee -a "$LOG_FILE"
+            EXIT_CODE=${PIPESTATUS[0]}
             
-            if [ ${PIPESTATUS[0]} -eq 0 ]; then
+            if [ $EXIT_CODE -eq 0 ]; then
                 echo "RESULT: SUCCESS" >> "$LOG_FILE"
             else
-                echo "RESULT: FAILED" >> "$LOG_FILE"
+                echo "RESULT: FAILED (exit code: $EXIT_CODE)" >> "$LOG_FILE"
             fi
             
             echo "" >> "$LOG_FILE"

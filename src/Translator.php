@@ -692,6 +692,7 @@ class Translator
      */
     private function textToLines(string $text): array
     {
+        $text = stripcslashes($text);
         return explode("\n", $text);
     }
 
@@ -809,7 +810,7 @@ class Translator
             'target_language' => $this->targetLanguage,
             'translations' => $translations,
         ];
-        file_put_contents($path, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        file_put_contents($path, json_encode($data, JSON_UNESCAPED_UNICODE));
     }
 
     /**

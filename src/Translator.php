@@ -178,6 +178,9 @@ class Translator
                 $sub = $internalFormat[$j];
                 $text = $this->linesToText($sub['lines']);
 
+                // Normalize square brackets: add inner spaces to disable LLM tag detection
+                $text = preg_replace('/\[(\S[^]]*)\]/', '[ $1 ]', $text);
+
                 if ($stripHtml) {
                     // Store HTML tags with positions so we can re-insert after translation
                     $htmlMap[(string)$j] = $this->extractHtmlTags($text);
@@ -280,6 +283,9 @@ class Translator
                 foreach ($validLines as $line) {
                     $idx = (int)$line['index'];
                     $text = $line['text'];
+
+                    // Restore original bracket formatting: remove added inner spaces
+                    $text = preg_replace('/\[ (.*?) \]/', '[$1]', $text);
 
                     // Re-insert HTML tags if they were stripped
                     if ($stripHtml && isset($htmlMap[(string)$idx])) {

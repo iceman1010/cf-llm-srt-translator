@@ -134,15 +134,27 @@ class Translator
 
         if (file_exists($progressFile)) {
             $progressData = json_decode(file_get_contents($progressFile), true);
+            // Validate progress file matches current job parameters
+            $isValidProgress = false;
             if ($progressData && isset($progressData['index'])) {
-                $startIndex = $progressData['index'];
-                // Restore previously translated lines
-                if (isset($progressData['translations'])) {
-                    foreach ($progressData['translations'] as $idx => $text) {
-                        $translatedFormat[$idx]['lines'] = $this->textToLines($text);
+                $modelMatch = ($progressData['model'] ?? '') === $this->modelKey;
+                $langMatch = ($progressData['target_language'] ?? '') === $this->targetLanguage;
+                if ($modelMatch && $langMatch) {
+                    $isValidProgress = true;
+                    $startIndex = $progressData['index'];
+                    // Restore previously translated lines
+                    if (isset($progressData['translations'])) {
+                        foreach ($progressData['translations'] as $idx => $text) {
+                            $translatedFormat[$idx]['lines'] = $this->textToLines($text);
+                        }
                     }
+                    echo "Resuming from subtitle {$startIndex}/{$total}\n";
                 }
-                echo "Resuming from subtitle {$startIndex}/{$total}\n";
+            }
+            // Delete stale progress file if it doesn't match current job
+            if (!$isValidProgress) {
+                unlink($progressFile);
+                echo "Progress file cleared (job parameters changed).\n";
             }
         }
 

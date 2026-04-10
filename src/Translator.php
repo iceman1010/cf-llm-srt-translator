@@ -44,12 +44,12 @@ class Translator
     {
         $this->apiToken = $options['api_token'];
         $this->accountId = $options['account_id'];
-        $this->targetLanguage = $options['target_language'];
-        $this->inputFile = $options['input_file'];
-        $this->modelKey = $options['model'] ?? 'qwen3-30b';
-        $this->configPath = $options['config_path'] ?? __DIR__ . '/../llm-models.json';
-        $this->description = $options['description'] ?? null;
-        $this->retryCount = max(0, (int)($options['retry'] ?? 1));
+        $this->targetLanguage = is_array($options['target_language']) ? reset($options['target_language']) : $options['target_language'];
+        $this->inputFile = is_array($options['input_file']) ? reset($options['input_file']) : $options['input_file'];
+        $this->modelKey = is_array($options['model'] ?? 'qwen3-30b') ? reset($options['model'] ?? 'qwen3-30b') : $options['model'] ?? 'qwen3-30b';
+        $this->configPath = is_array($options['config_path'] ?? __DIR__ . '/../llm-models.json') ? reset($options['config_path'] ?? __DIR__ . '/../llm-models.json') : $options['config_path'] ?? __DIR__ . '/../llm-models.json';
+        $this->description = isset($options['description']) ? (is_array($options['description']) ? reset($options['description']) : $options['description']) : null;
+        $this->retryCount = max(0, (int)(is_array($options['retry'] ?? 1) ? reset($options['retry'] ?? 1) : $options['retry'] ?? 1));
 
         // Load model config
         $configJson = file_get_contents($this->configPath);
@@ -63,12 +63,12 @@ class Translator
 
         $this->modelConfig = $config['models'][$this->modelKey];
         $this->modelId = $this->modelConfig['model_id'];
-        $this->batchSize = $options['batch_size'] ?? $this->modelConfig['batch_size'];
-        $this->temperature = $options['temperature'] ?? $config['api']['default_temperature'];
-        $this->maxTokens = $options['max_tokens'] ?? $config['api']['default_max_tokens'];
+        $this->batchSize = isset($options['batch_size']) ? (int)(is_array($options['batch_size']) ? reset($options['batch_size']) : $options['batch_size']) : $this->modelConfig['batch_size'];
+        $this->temperature = isset($options['temperature']) ? (float)(is_array($options['temperature']) ? reset($options['temperature']) : $options['temperature']) : $config['api']['default_temperature'];
+        $this->maxTokens = isset($options['max_tokens']) ? (int)(is_array($options['max_tokens']) ? reset($options['max_tokens']) : $options['max_tokens']) : $config['api']['default_max_tokens'];
         $this->contextWindow = $this->modelConfig['context_window'];
         $this->enableThinking = $options['think'] ?? false;
-        $this->responseFormat = $options['format'] ?? 'json';
+        $this->responseFormat = is_array($options['format'] ?? 'json') ? reset($options['format'] ?? 'json') : $options['format'] ?? 'json';
         if (!in_array($this->responseFormat, ['json', 'simple'])) {
             throw new \RuntimeException("Invalid format: {$this->responseFormat}. Must be 'json' or 'simple'.");
         }
@@ -76,7 +76,7 @@ class Translator
 
         // Output file
         if (isset($options['output_file'])) {
-            $this->outputFile = $options['output_file'];
+            $this->outputFile = is_array($options['output_file']) ? reset($options['output_file']) : $options['output_file'];
         } else {
             $pathInfo = pathinfo($this->inputFile);
             $this->outputFile = $pathInfo['dirname'] . '/' . $pathInfo['filename']

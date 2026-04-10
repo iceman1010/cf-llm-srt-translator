@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-define('VERSION', 'v1.6.5');
+define('VERSION', 'v1.7.0');
 
 use CloudflareSrt\Translator;
 use Dotenv\Dotenv;
@@ -297,6 +297,10 @@ if (empty(getenv('CLOUDFLARE_API_TOKEN')) || empty(getenv('CLOUDFLARE_ACCOUNT_ID
     }
 }
 
+// Load ALT credentials if available
+$altApiToken = $_ENV['ALT_CLOUDFLARE_API_TOKEN'] ?? null;
+$altAccountId = $_ENV['ALT_CLOUDFLARE_ACCOUNT_ID'] ?? null;
+
 // Validate required arguments
 if (empty($options['input']) || empty($options['language'])) {
     echo "Usage: php translate.php -i <file> -l <language> [options]\n";
@@ -314,7 +318,7 @@ if (empty($options['input']) || empty($options['language'])) {
     echo "  -d <text>   --description=<text>     Additional context for translation\n";
     echo "  -r          --think                  Enable reasoning for reasoning models (higher quality, higher cost)\n";
     echo "  -R <n>      --retry=<n>              Number of retries on merged content (default: 1)\n";
-    echo "  -f <fmt>    --format=<fmt>            Response format: json|simple (default: json)\n";
+    echo "  -f <fmt>    --format=<fmt>            Response format: json|simple (default: simple)\n";
     echo "  -v          --debug                 Show system prompt and first user message\n";
     exit(1);
 }
@@ -375,6 +379,8 @@ try {
     $translator = new Translator([
         'api_token' => $_ENV['CLOUDFLARE_API_TOKEN'],
         'account_id' => $_ENV['CLOUDFLARE_ACCOUNT_ID'],
+        'alt_api_token' => $altApiToken,
+        'alt_account_id' => $altAccountId,
         'target_language' => $targetLanguage,
         'input_file' => $options['input'],
         'model' => $resolvedModel,
@@ -385,7 +391,7 @@ try {
         'description' => $options['description'] ?? null,
         'think' => isset($options['think']),
         'retry' => isset($options['retry']) ? (int)$options['retry'] : 1,
-        'format' => $options['format'] ?? 'json',
+        'format' => $options['format'] ?? 'simple',
         'debug' => isset($options['debug']),
     ]);
 

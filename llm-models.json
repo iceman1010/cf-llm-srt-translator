@@ -1,6 +1,8 @@
 {
     "api": {
-        "base_url": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_id}",
+        "base_url": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_id}{region_param}",
+        "allowed_regions": ["auto", "us", "eu", "apac"],
+        "default_region": "auto",
         "default_temperature": 0.6,
         "default_max_tokens": 8192
     },
@@ -44,11 +46,23 @@
             "input_cost_per_million": 0.35,
             "output_cost_per_million": 0.56,
             "context_window": 128000,
-            "batch_size": 150,
+            "batch_size": 120,
+            "max_output_tokens": 7000,
             "reasoning": false,
             "strip_html": false,
+
+            "workarounds": {
+                "strip_environment_tags": true,
+                "downsize_on_json_error": true,
+                "truncate_on_unclosed_json": true
+            },
+
+            "limits": {
+                "max_batch_size": 150
+            },
+
             "languages": ["fr","de","es","pt","it","nl","ru","pl","cs","ro","hu","bg","hr","sk","sl","sr","bs","mk","sq","el","tr","sv","da","no","fi","et","lv","lt","uk","be","ka","hy","is","ga","cy","eu","ca","gl","mt","lb","af","ar","he","fa","ur","hi","bn","ta","te","mr","gu","kn","ml","pa","si","ne","zh","ja","ko","th","vi","id","ms","tl","sw","mn","km","lo","my","az","uz","kk","am","ha","yo","ig","zu","xh","so","rw","sn","ny","ku","ps","sd","tg","tk","ky","tt","ug","jv","su","ceb","mi","sm","haw","yi","eo","la","ht","gd"],
-            "notes": "MistralAI. No reasoning overhead. 101/102 tested (mg failed). 128K context."
+            "notes": "MistralAI. No reasoning overhead. 101/102 tested (mg failed). 128K context. Safe batch 120."
         },
         "sea-lion-27b": {
             "model_id": "@cf/aisingapore/gemma-sea-lion-v4-27b-it",

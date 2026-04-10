@@ -17,6 +17,7 @@ Traditional subtitle translation tools rely on rule-based machine translation th
 - **Reasoning Mode** - Enable LLM reasoning for improved translation quality on complex dialogue (`--think` flag, higher cost)
 - **Resume Interrupted Jobs** - Progress is saved automatically; resume large files after network errors
 - **Partial Result Recovery** - Truncated LLM responses are salvaged; batch size auto-reduces
+- **Simple Format Default** - Uses plain text line numbering (more robust than JSON for partial responses)
 - **RTL Language Support** - Automatic BiDi wrapping for Arabic, Hebrew, Persian, Urdu, and other right-to-left languages
 - **Cost Tracking** - Per-run token usage and cost estimates
 - **Self-Update** - Update the PHAR to the latest version with `--update`
@@ -85,6 +86,18 @@ CLOUDFLARE_ACCOUNT_ID=your_account_id
 
 Credential priority: environment variables > local `.env` > `~/.cf-llm-srt-translate/.env`
 
+### Fallback account (optional)
+
+If you have multiple Cloudflare accounts, you can configure a fallback account. When the primary account's daily quota is exhausted, the tool automatically switches to the alternate account and continues:
+
+```bash
+# Add to .env file
+ALT_CLOUDFLARE_API_TOKEN=your_alt_api_token
+ALT_CLOUDFLARE_ACCOUNT_ID=your_alt_account_id
+```
+
+If the fallback account also runs out of quota, the tool aborts and saves progress so you can resume later.
+
 ## Usage
 
 ### Translate subtitles to any language
@@ -143,6 +156,7 @@ Optional:
   --max-tokens=<n>         Override max tokens (default: 8192)
   --description=<text>     Additional context for translation
   --think                  Enable reasoning for reasoning models (higher quality, higher cost)
+  --format=<fmt>           Response format: json|simple (default: simple, recommended)
   --list-models            List available models and exit
   --list-languages         List languages for a model (requires --model) and exit
   --update                 Update PHAR to latest release and exit
@@ -172,10 +186,11 @@ Optional:
 
 ## Error Handling
 
+- **Simple format (default)** - Plain text output is robust against truncation; partial results always parse correctly
 - **Partial results** - If a model truncates output, valid translations are kept and batch size auto-reduces
 - **Rate limiting (429)** - Exponential backoff up to 120s
 - **Server errors (500/503)** - 60s pause and retry
-- **Malformed JSON** - Multi-step extraction (strip fences, think tags, bracket extraction, repair)
+- **Malformed JSON** - Multi-step extraction (strip fences, think tags, bracket extraction, repair) - only applies when using `--format=json`
 - **Debug logging** - Raw responses saved to `.debug-response.txt` on JSON errors
 - **Consecutive error limit** - 3 failures on the same batch before aborting (progress is saved)
 

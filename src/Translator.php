@@ -18,6 +18,10 @@ class Translator
     private string $outputFile;
     private int $maxTokens;
 
+    private ?string $altApiToken;
+    private ?string $altAccountId;
+    private bool $usingAltAccount = false;
+
     private array $modelConfig;
     private string $modelId;
     private CloudflareClient $client;
@@ -68,7 +72,7 @@ class Translator
         $this->maxTokens = isset($options['max_tokens']) ? (int)(is_array($options['max_tokens']) ? reset($options['max_tokens']) : $options['max_tokens']) : $config['api']['default_max_tokens'];
         $this->contextWindow = $this->modelConfig['context_window'];
         $this->enableThinking = $options['think'] ?? false;
-        $this->responseFormat = is_array($options['format'] ?? 'json') ? reset($options['format'] ?? 'json') : $options['format'] ?? 'json';
+        $this->responseFormat = is_array($options['format'] ?? 'simple') ? reset($options['format'] ?? 'simple') : $options['format'] ?? 'simple';
         if (!in_array($this->responseFormat, ['json', 'simple'])) {
             throw new \RuntimeException("Invalid format: {$this->responseFormat}. Must be 'json' or 'simple'.");
         }
@@ -84,7 +88,19 @@ class Translator
                 . '.' . ($pathInfo['extension'] ?? 'srt');
         }
 
+        // ALT credentials for quota fallback
+        $this->altApiToken = $options['alt_api_token'] ?? null;
+        $this->altAccountId = $options['alt_account_id'] ?? null;
+
         $this->client = new CloudflareClient($this->apiToken, $this->accountId);
+    }
+
+    /**
+     * Recreate the Cloudflare client with new credentials (for account switching).
+     */
+    private function recreateClient(string $apiToken, string $accountId): void
+    {
+        $this->client = new CloudflareClient($apiToken, $accountId);
     }
 
     /**
@@ -355,10 +371,29 @@ class Translator
                     echo " Rate limited ({$this->rateLimitErrors} total). Waiting {$wait}s...\n";
                     sleep((int)$wait);
                 } elseif (str_contains($msg, '429 Quota Exceeded')) {
-                    echo " Daily API quota exhausted. Cannot continue.\n";
-                    $this->saveProgress($progressFile, $i, $translations);
-                    echo "Progress saved. Resume tomorrow or when quota resets.\n";
-                    return;
+                    // Check if alt credentials are available
+                    if ($this->usingAltAccount) {
+                        // Already using alt account - both quotas exhausted
+                        echo " ALT account quota also exhausted. Cannot continue.\n";
+                        $this->saveProgress($progressFile, $i, $translations);
+                        echo "Progress saved. Resume tomorrow or when quota resets.\n";
+                        return;
+                    }
+
+                    if ($this->altApiToken === null || $this->altAccountId === null) {
+                        echo " Daily API quota exhausted. No ALT credentials configured. Cannot continue.\n";
+                        $this->saveProgress($progressFile, $i, $translations);
+                        echo "Progress saved. Resume tomorrow or when quota resets.\n";
+                        return;
+                    }
+
+                    // Switch to ALT account
+                    echo " Daily API quota exhausted. Switching to ALT account...\n";
+                    $this->usingAltAccount = true;
+                    $this->recreateClient($this->altApiToken, $this->altAccountId);
+                    $this->consecutiveErrors = 0;
+                    echo " Retry with ALT account.\n";
+                    continue;
                 } elseif (str_contains($msg, '500') || str_contains($msg, '503')) {
                     $this->consecutiveErrors++;
                     echo " Server error. Waiting 60s...\n";
@@ -420,6 +455,14 @@ class Translator
      */
     private function extractJson(string $text): array
     {
+        // FIRST THING: Strip all injected Cloudflare metadata before ANYTHING else
+        // Run this even before looking at brackets or json
+        $text = preg_replace('/<environment_details>.*?<\/environment_details>/s', '', $text);
+        $text = preg_replace('/<[a-z_]+>.*?<\/[a-z_]+>/s', '', $text);
+        // Also clean any partial opening tags left at the end
+        $text = preg_replace('/<[a-z_]+>.*$/s', '', $text);
+        $text = trim($text);
+
         // Step 1: Try direct decode
         $result = json_decode($text, true);
         if (is_array($result) && $this->isListOfDicts($result)) {
@@ -473,6 +516,39 @@ class Translator
         $lastBracket = strrpos($text, ']');
         if ($firstBracket !== false && $lastBracket !== false) {
             $text = substr($text, $firstBracket, $lastBracket - $firstBracket + 1);
+        }
+
+        // Fix truncation at model max_tokens - handles pattern like "},\n{}" or "},{"index":"..."
+        // This happens when response is cut off mid-JSON
+        if (preg_match('/},\s*\{/', $text)) {
+            // Find the last complete object before the truncation
+            // Split by "},{" to find where truncation occurred
+            $parts = preg_split('/\},\{/', $text);
+            if (count($parts) > 1) {
+                // Reconstruct - add back the } that was the split delimiter
+                $fixed = '';
+                for ($i = 0; $i < count($parts) - 1; $i++) {
+                    $fixed .= $parts[$i] . '},';
+                }
+                // Add the last part without the trailing delimiter
+                $fixed .= $parts[count($parts) - 1];
+                // Close the array
+                $fixed = rtrim($fixed, ',') . ']';
+                
+                $result = json_decode($fixed, true);
+                if (is_array($result) && $this->isListOfDicts($result)) {
+                    return $result;
+                }
+            }
+        }
+
+        // Fix empty {} at end (truncation marker)
+        if (preg_match('/\{\},\s*\]?$/', $text)) {
+            $fixed = preg_replace('/\{\},\s*\]?$/', ']', $text);
+            $result = json_decode($fixed, true);
+            if (is_array($result) && $this->isListOfDicts($result)) {
+                return $result;
+            }
         }
 
         // Try fixing trailing commas before ]
